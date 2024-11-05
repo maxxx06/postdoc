@@ -13,7 +13,7 @@
 | ...   | ...        |
 
 
-- Then, it assigns cefficients following the equation $\text{gw }=\frac{T_g}{T_max}$ where $\text{gw}$ represents reaction weights associated to gene g, ${T_g}$ represents the read-per-million normalised of the gene g and ${T_max}$ the  largest abundance of this distribution.
+- Then, it assigns cefficients following the equation $\text{gw }=\frac{T_g}{T_{max}}$ where $\text{gw}$ represents reaction weights associated to gene g, ${T_g}$ represents the read-per-million normalised of the gene g and ${T_{max}}$ the  largest abundance of this distribution.
 
     -  check if GPR option is activated (Determines if GPR rules will be considered during coefficient assignment). 
         
