@@ -15,6 +15,7 @@ import tempfile
 from dexom_python.default_parameter_values import DEFAULT_VALUES
 from dexom_python.result_functions import read_solution
 from dexom_python.enum_functions.rxn_enum_functions import rxn_enum
+from dexom_python.enum_functions.icut_functions import icut
 from dexom_python.enum_functions.diversity_enum_functions import diversity_enum
 
 def load_model():
@@ -39,7 +40,7 @@ def playGPR_rules():
     return dexom_python.apply_gpr(model,gene_w_good,save=True,filename='data/tests/dexom_output/reaction_weigths')
 
 
-def enumeration_methods(provenance="iMAT"):
+def enumeration_methods(provenance="iMAT",enum_method = 'maxdist'):
     """perform reaction enumeration and diversity enumeration from iMAT or riptide solution.
 
     Args:
@@ -72,18 +73,43 @@ def enumeration_methods(provenance="iMAT"):
         # reaction_weights = reaction_weights_iMAT
         print('reaction weights iMAT \n',reaction_weights)
         
+    ### Use different enumeration methods of DEXOM
+    
+    if enum_method == 'rxn':
+        #Reaction enum: Based on the idea of generating alternative solutions by single reaction changes.
+        rxn_sol  = rxn_enum(model=model, prev_sol=prev_solution, reaction_weights=reaction_weights, eps=eps,thr=thr, obj_tol=obj_tol, tool='riptide', transcriptomic_file='data/tests/transcriptome1.tsv',save=True)
 
-    rxn_sol  = rxn_enum(model=model, prev_sol=prev_solution, reaction_weights=reaction_weights, eps=eps,thr=thr, obj_tol=obj_tol, tool='riptide', transcriptomic_file='data/tests/transcriptome1.tsv')
+        uniques = pd.DataFrame(rxn_sol.unique_binary)
+        uniques.columns = [r.id for r in model.reactions]
+        uniques.to_csv('data/tests/dexom_output/'+provenance+'_rxnenum_solutions.csv')
 
-    uniques = pd.DataFrame(rxn_sol.unique_binary)
-    uniques.columns = [r.id for r in model.reactions]
-    uniques.to_csv('data/tests/dexom_output/'+provenance+'_rxnenum_solutions.csv')
+    elif enum_method == 'icut':
+        # Icut-enum: Using integer-cuts as constrains to discards previously solutions
+        icut_sol = icut(model,reaction_weights, prev_sol=prev_solution, eps=eps,thr=thr, obj_tol=obj_tol, tool=provenance, transcriptomic_file='data/tests/transcriptome1.tsv',full=True)
+        uniques = pd.DataFrame(icut_sol.binary)
+        sol = pd.DataFrame(icut_sol.solutions)
+        print(icut_sol.objective_value)
+        print(icut_sol.solutions[0].fluxes)
+        print(icut_sol.binary)
 
-    # div_sol, div_res = diversity_enum(model=model, prev_sol=prev_solution, reaction_weights=reaction_weights, eps=eps,
-    #                                   thr=thr, obj_tol=obj_tol, maxiter=maxiter, dist_anneal=dist_anneal)
-    # div_res.to_csv('data/tests/dexom_output/'+provenance+'_divenum_results.csv')
-    # sol = pd.DataFrame(div_sol.binary, columns=[r.id for r in model.reactions])
-    # sol.to_csv('data/tests/dexom_output/'+provenance+'_divenum_solutions.csv')
+        uniques.columns = [r.id for r in model.reactions]
+        uniques.to_csv('data/tests/dexom_output/'+provenance+'_icut_binary_sol.csv')
+
+    elif enum_method == 'maxdist':
+        # Most distant optimal solution with respect to the previous optimal solution, and using integer-cuts to avoid re-discovering the same distant solutions.
+        #TODO
+        pass
+
+    elif enum_method == 'diversity':
+        # takes the best of the other three techniques without their disadvantages.
+        div_sol, div_res = diversity_enum(model=model, prev_sol=prev_solution, reaction_weights=reaction_weights, eps=eps,
+                                        thr=thr, obj_tol=obj_tol, maxiter=maxiter, dist_anneal=dist_anneal)
+        div_res.to_csv('data/tests/dexom_output/'+provenance+'_divenum_results.csv')
+        sol = pd.DataFrame(div_sol.binary, columns=[r.id for r in model.reactions])
+        sol.to_csv('data/tests/dexom_output/'+provenance+'_divenum_solutions.csv')
+    
+
+
 
 def create_tempory_previous_solution_file(df):
     with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
@@ -103,4 +129,4 @@ def lunch_riptide(file_transcrit,model):
     return temp_sol_full
     
 
-enumeration_methods(provenance="riptide")
+enumeration_methods(provenance="iMAT",enum_method ='maxdist')
