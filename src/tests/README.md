@@ -32,6 +32,11 @@
     - *sampling*: multiply maximum coefficient of a reaction by its flux
 
 
+## Output of riptide: a bit more of explanation
+
+`Transcriptome.tsv` is basically the output of pre-processing data, from transcrit abundances to RPM. 
+
+
 
 
 
