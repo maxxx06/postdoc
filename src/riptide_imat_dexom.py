@@ -16,6 +16,7 @@ from dexom_python.default_parameter_values import DEFAULT_VALUES
 from dexom_python.result_functions import read_solution
 from dexom_python.enum_functions.rxn_enum_functions import rxn_enum
 from dexom_python.enum_functions.icut_functions import icut
+from dexom_python.enum_functions.maxdist_functions import maxdist
 from dexom_python.enum_functions.diversity_enum_functions import diversity_enum
 
 def load_model():
@@ -66,7 +67,6 @@ def enumeration_methods(provenance="iMAT",enum_method = 'maxdist'):
         print('prev_solution of RIPTIDE fluxes \n',prev_solution.fluxes)
         print('prev_solution of RIPTIDE objective value \n',prev_solution.objective_value)
         print('reaction weights RIPTIDE \n',reaction_weights)
-
     else:
         prev_solution=None
         reaction_weights = playGPR_rules()
@@ -87,7 +87,6 @@ def enumeration_methods(provenance="iMAT",enum_method = 'maxdist'):
         # Icut-enum: Using integer-cuts as constrains to discards previously solutions
         icut_sol = icut(model,reaction_weights, prev_sol=prev_solution, eps=eps,thr=thr, obj_tol=obj_tol, tool=provenance, transcriptomic_file='data/tests/transcriptome1.tsv',full=True)
         uniques = pd.DataFrame(icut_sol.binary)
-        sol = pd.DataFrame(icut_sol.solutions)
         print(icut_sol.objective_value)
         print(icut_sol.solutions[0].fluxes)
         print(icut_sol.binary)
@@ -96,9 +95,15 @@ def enumeration_methods(provenance="iMAT",enum_method = 'maxdist'):
         uniques.to_csv('data/tests/dexom_output/'+provenance+'_icut_binary_sol.csv')
 
     elif enum_method == 'maxdist':
-        # Most distant optimal solution with respect to the previous optimal solution, and using integer-cuts to avoid re-discovering the same distant solutions.
-        #TODO
-        pass
+        # Most distant optimal solution with respect to the previous optimal solution, and using integer-cuts to avoid  re-discovering the same distant solutions.
+        maxdist_sol = maxdist(model,reaction_weights,prev_sol=prev_solution, tool=provenance, transcriptomic_file='data/tests/transcriptome1.tsv')
+        uniques = pd.DataFrame(maxdist_sol.binary)
+        print(maxdist_sol.objective_value)
+        print(maxdist_sol.solutions[0].fluxes)
+        print(maxdist_sol.binary)
+
+        uniques.columns = [r.id for r in model.reactions]
+        uniques.to_csv('data/tests/dexom_output/'+provenance+'_maxdist_binary_sol.csv')
 
     elif enum_method == 'diversity':
         # takes the best of the other three techniques without their disadvantages.
@@ -129,4 +134,4 @@ def lunch_riptide(file_transcrit,model):
     return temp_sol_full
     
 
-enumeration_methods(provenance="iMAT",enum_method ='maxdist')
+enumeration_methods(provenance="riptide",enum_method ='maxdist')
