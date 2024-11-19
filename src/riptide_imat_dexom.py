@@ -1,7 +1,7 @@
 #
 #
 # Script to manipulate DEXOM_python method 
-# 4.10.2024
+# 4.11.2024
 # Made by Maxime Lecomte
 #
 #
@@ -104,13 +104,16 @@ def enumeration_methods(provenance="iMAT",enum_method = 'maxdist'):
 
     elif enum_method == 'icut':
         # Icut-enum: Using integer-cuts as constrains to discards previously solutions
-        icut_sol = icut(model,reaction_weights, prev_sol=prev_solution, eps=eps,thr=thr, obj_tol=obj_tol, tool=provenance, transcriptomic_file='data/tests/transcriptome1.tsv',full=True)
+        icut_sol = icut(model,reaction_weights, prev_sol=prev_solution, eps=eps,thr=thr, obj_tol=obj_tol, tool=provenance, transcriptomic_file='data/tests/transcriptome1.tsv',full=True, pruned_reactions=riptide_object)
         uniques = pd.DataFrame(icut_sol.binary)
         print(icut_sol.objective_value)
         print(icut_sol.solutions[0].fluxes)
         print(icut_sol.binary)
 
-        uniques.columns = [r.id for r in model.reactions]
+        if provenance != 'iMAT':
+            uniques.columns = [r.id for r in model.reactions if r.id not in riptide_object.pruned['reactions']]
+        else:
+            uniques.columns = [r.id for r in model.reactions]
         if create_directory_if_not_exists('data/tests/dexom_output/'+provenance+'/') : uniques.to_csv('data/tests/dexom_output/'+provenance+'/icut_binary_sol.csv')
 
     elif enum_method == 'maxdist':
@@ -170,4 +173,4 @@ def lunch_riptide(file_transcrit,model,gpr=True,prune=True,objective=True):
     return temp_sol_full
     
 
-enumeration_methods(provenance="riptide",enum_method ='rxn')
+enumeration_methods(provenance="riptide",enum_method ='icut')
