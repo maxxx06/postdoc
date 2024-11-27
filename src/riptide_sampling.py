@@ -10,11 +10,13 @@ import cobra
 import pandas as pd
 import os 
 import riptide
+from pathlib import Path
 
-DOSE_LEVEL = ['Control','Low','Middle','High']
-COMPOUND_NAME = ['valproic acid','amiodarone']
 
-def data_filter(data_path,attribute_data_path,output_transcriptomic_path):
+# DOSE_LEVEL = ['Control','Low','Middle','High']
+# COMPOUND_NAME = ['valproic acid','amiodarone']
+
+def data_filter(data_path,attribute_data_path,output_transcriptomic_path,sacrifice_period=str(),dose_level=str(),compound_name=str()):
 
     if os.path.exists(output_transcriptomic_path):
         return pd.read_csv(output_transcriptomic_path)
@@ -23,8 +25,9 @@ def data_filter(data_path,attribute_data_path,output_transcriptomic_path):
     attribute_data = pd.read_csv(attribute_data_path, encoding_errors='ignore')
     attribute_data = attribute_data.loc[(attribute_data['SPECIES'] == 'Human') 
                                         & (attribute_data['ORGAN'] == 'Liver') 
-                                        & (attribute_data['DOSE_LEVEL'].isin(DOSE_LEVEL)) 
-                                        & (attribute_data['COMPOUND_NAME'].isin(COMPOUND_NAME))
+                                        & (attribute_data['DOSE_LEVEL'] == dose_level) 
+                                        & (attribute_data['SACRIFICE_PERIOD'] == sacrifice_period)
+                                        & (attribute_data['COMPOUND_NAME'] == compound_name)
                                         ]
     
     attribute_data = attribute_data.drop(["SEX_TYPE","MATERIAL_ID","EXP_ID","GROUP_ID",'STRAIN_TYPE',"ADMINISTRATION_ROUTE_TYPE","ANIMAL_AGE(week)","ARR_DESIGN","EXP_TEST_TYPE","COMPOUND_NO","SINGLE_REPEAT_TYPE"],axis=1)
@@ -41,8 +44,8 @@ def load_model(model_path):
     return cobra.io.read_sbml_model(model_path)
 
 def map_genes(transcriptomic_data_unmapped,mapped_genes=str(),output=str()):
-    if os.path.exists(output):
-        data = df_to_dict(output)
+    if os.path.exists(output[1]):
+        data = df_to_dict(output[0],output[1])
         return data
     
     mapped_genes_dict = {}
@@ -56,15 +59,19 @@ def map_genes(transcriptomic_data_unmapped,mapped_genes=str(),output=str()):
     for k,v in mapped_genes_dict.items():
         transcriptomic_data_unmapped.replace(k,v,inplace=True)
     transcriptomic_data_mapped = transcriptomic_data_unmapped
+    transcriptomic_data_mapped.to_csv(output[0])
 
-    transcriptomic_data_mapped.to_csv(output)
-    data = df_to_dict(output)
+    data = df_to_dict(output[0],output[1])
 
     return data
 
-def df_to_dict(path):
+def df_to_dict(path,output):
     df = pd.read_csv(path)
     df.set_index("SYMBOL",inplace=True)
+    df = df.loc[:,df.columns.str.endswith('.CEL')]
+    if output != '':
+        df.to_csv(output)
+
     transcriptomic_data_dict = df.to_dict("index")
     
     data = {}
@@ -75,14 +82,65 @@ def df_to_dict(path):
 
     return data
 
-     
+def create_directory_if_not_exists(path):
+    if is_valid_path(path):
+        if not os.path.exists(path):
+            os.makedirs(path)
+            print(f"Le répertoire '{path}' a été créé.")
+        else:
+            print(f"Le répertoire '{path}' existe déjà.")
+        return True
+    else:
+        return False
 
-def get_flux_samples(data_path,attribute_data_path,output_transcriptomic_path):
-    transcriptomic_data = data_filter(data_path,attribute_data_path,output_transcriptomic_path)
-    transcriptomic_data_mapped = map_genes(transcriptomic_data,mapped_genes='data/microarray/gene_with_protein_product.txt',output='data/microarray/transcriptomic_data_mapped.csv')
-    model = load_model('data/metabolic_networks/recon2.2.xml')
-    riptide_object = riptide.contextualize(model,transcriptome = transcriptomic_data_mapped,gpr=True,prune=True,objective=False,samples=1,fraction=0.001)
-    riptide.save_output(riptide_obj=riptide_object, path="results/riptide_recon2.2",file_type='SBML')
+def is_valid_path(path):
+    try:
+        p = Path(path)
+        p.resolve(strict=False)
+        return True
+    except (OSError, ValueError):
+         return False
+
+def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_level=str(),compound_name=str()):
+    output_transcriptomic_path = 'data/microarray/'+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/'
+    if create_directory_if_not_exists(output_transcriptomic_path):
+        transcriptomic_data = data_filter(data_path,attribute_data_path,output_transcriptomic_path+'transcriptomic_data.csv',sacrifice_period=sacrific_period,dose_level=dose_level,compound_name=compound_name)
+        transcriptomic_data_mapped = map_genes(transcriptomic_data,mapped_genes='data/microarray/gene_with_protein_product.txt',output=[output_transcriptomic_path+'transcriptomic_data_mapped.csv',output_transcriptomic_path+'transcriptomic_data_mapped_corrected.csv'])
+        # transcriptomic_data_mapped_normalized = riptide.read_transcription_file(output_transcriptomic_path+'transcriptomic_data_mapped_corrected.csv',sep=',',header=True)
+        model = load_model('data/metabolic_networks/recon2.2.xml')
+        # max_fit = riptide.maxfit(model=model,transcriptome=transcriptomic_data_mapped,objective=False)
+        # riptide.save_output(riptide_obj=max_fit, path="results/riptide_recon2.2/"+sacrific_period.split(' ')[0]+'_'+dose_level+'_'+compound_name+'/',file_type='SBML')
+        riptide_object = riptide.contextualize(model,transcriptome = transcriptomic_data_mapped,gpr=True,prune=True,objective=True,samples=100000,fraction=0.8)
+        riptide.save_output(riptide_obj=riptide_object, path="results/riptide/recon2.2/"+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/',file_type='SBML')
+        # print(riptide_object.flux_samples)
+    else:
+        print('not a valid path for ', output_transcriptomic_path)
 
 
-get_flux_samples('data/microarray/annotated_data_uniq_high_sd_flagged.tsv','data/microarray/open_tggates_cel_file_attribute.csv','data/microarray/transcriptomic_data.csv')
+def imat_solutions():
+    from dexom_python import imat,apply_gpr
+    model =  load_model("data/metabolic_networks/recon2v2_biomass_corrected.sbml")
+    #define parameters
+    eps = 1e-2  # threshold of activity for highly expressed reactions
+    thr = 1e-5  # threshold of activity for all reactions
+    obj_tol = 1e-5  # variance allowed for the objective_value
+    tlim = 600  # time limit (in seconds) for the imat model.optimisation() call
+    tol = 1e-6  # tolerance for the solver
+    maxiter = 10
+    model.solver = "cplex"
+
+    #define reactions weights
+    df = pd.read_csv('data/microarray/24_Control_amiodarone/transcriptomic_data_mapped_corrected.csv')
+    transcriptomic_data_mapped = df_to_dict('data/microarray/24_Control_amiodarone/transcriptomic_data_mapped_corrected.csv','')
+    transcriptomic_data_mapped = {k:v[0] for k,v in transcriptomic_data_mapped.items()}
+    reaction_weights = apply_gpr(model,transcriptomic_data_mapped)
+
+    #run imat
+    dexom_solutions  = imat(model,reaction_weights,epsilon=eps)
+    print(dexom_solutions.fluxes)
+
+
+# imat_solutions() ## do not forget to transform INF bounds into 1000 and -1000
+for cpd in ['amiodarone','valproic acid']:
+    for dose in ['Control','Low','Middle','High']:
+        get_flux_samples('data/microarray/annotated_data_uniq_high_sd_flagged.tsv','data/microarray/open_tggates_cel_file_attribute.csv',sacrific_period='24 hr',dose_level=dose,compound_name=cpd)
