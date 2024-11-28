@@ -101,8 +101,9 @@ def is_valid_path(path):
     except (OSError, ValueError):
          return False
 
-def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_level=str(),compound_name=str()):
+def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_level=str(),compound_name=str(),sampling_coverage=False):
     output_transcriptomic_path = 'data/microarray/'+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/'
+    output_riptide_path = "results/riptide/recon2.2/"+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/'
     if create_directory_if_not_exists(output_transcriptomic_path):
         transcriptomic_data = data_filter(data_path,attribute_data_path,output_transcriptomic_path+'transcriptomic_data.csv',sacrifice_period=sacrific_period,dose_level=dose_level,compound_name=compound_name)
         transcriptomic_data_mapped = map_genes(transcriptomic_data,mapped_genes='data/microarray/gene_with_protein_product.txt',output=[output_transcriptomic_path+'transcriptomic_data_mapped.csv',output_transcriptomic_path+'transcriptomic_data_mapped_corrected.csv'])
@@ -110,8 +111,11 @@ def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_le
         model = load_model('data/metabolic_networks/recon2.2.xml')
         # max_fit = riptide.maxfit(model=model,transcriptome=transcriptomic_data_mapped,objective=False)
         # riptide.save_output(riptide_obj=max_fit, path="results/riptide_recon2.2/"+sacrific_period.split(' ')[0]+'_'+dose_level+'_'+compound_name+'/',file_type='SBML')
-        riptide_object = riptide.contextualize(model,transcriptome = transcriptomic_data_mapped,gpr=True,prune=True,objective=True,samples=100000,fraction=0.8)
-        riptide.save_output(riptide_obj=riptide_object, path="results/riptide/recon2.2/"+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/',file_type='SBML')
+        riptide_object = riptide.contextualize(model,transcriptome = transcriptomic_data_mapped,gpr=True,prune=True,objective=True,samples=10,fraction=0.8)
+        if sampling_coverage:
+            return riptide_object
+        if create_directory_if_not_exists(output_riptide_path):
+            riptide.save_output(riptide_obj=riptide_object, path=output_riptide_path,file_type='SBML')
         # print(riptide_object.flux_samples)
     else:
         print('not a valid path for ', output_transcriptomic_path)
@@ -141,6 +145,6 @@ def imat_solutions():
 
 
 # imat_solutions() ## do not forget to transform INF bounds into 1000 and -1000
-for cpd in ['amiodarone','valproic acid']:
-    for dose in ['Control','Low','Middle','High']:
-        get_flux_samples('data/microarray/annotated_data_uniq_high_sd_flagged.tsv','data/microarray/open_tggates_cel_file_attribute.csv',sacrific_period='24 hr',dose_level=dose,compound_name=cpd)
+# for cpd in ['amiodarone','valproic acid']:
+#     for dose in ['Control','Low','Middle','High']:
+        # get_flux_samples('data/microarray/annotated_data_uniq_high_sd_flagged.tsv','data/microarray/open_tggates_cel_file_attribute.csv',sacrific_period='24 hr',dose_level=dose,compound_name=cpd)
