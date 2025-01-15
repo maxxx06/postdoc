@@ -101,26 +101,41 @@ def is_valid_path(path):
     except (OSError, ValueError):
          return False
 
-def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_level=str(),compound_name=str(),sampling_coverage=False,replicates=int()):
+def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_level=str(),compound_name=str(),sampling_coverage=False,replicates=int(),samples=int()):
+    import dexom_python
     output_transcriptomic_path = 'data/microarray/'+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/'
-    for reps in range(replicates):
-        output_riptide_path = "results/riptide/recon2.2/"+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
-        if create_directory_if_not_exists(output_transcriptomic_path):
-            transcriptomic_data = data_filter(data_path,attribute_data_path,output_transcriptomic_path+'transcriptomic_data.csv',sacrifice_period=sacrific_period,dose_level=dose_level,compound_name=compound_name)
-            transcriptomic_data_mapped = map_genes(transcriptomic_data,mapped_genes='data/microarray/gene_with_protein_product.txt',output=[output_transcriptomic_path+'transcriptomic_data_mapped.csv',output_transcriptomic_path+'transcriptomic_data_mapped_corrected.csv'])
-            # transcriptomic_data_mapped_normalized = riptide.read_transcription_file(output_transcriptomic_path+'transcriptomic_data_mapped_corrected.csv',sep=',',header=True)
+    model = load_model('data/metabolic_networks/recon2v2_biomass_corrected_final.sbml')   
+    model.name = 'data/metabolic_networks/recon2v2_biomass_corrected_final.sbml'
+    # output_riptide_path = "results/riptide/recon2.2/"+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
+    if create_directory_if_not_exists(output_transcriptomic_path):
+        transcriptomic_data = data_filter(data_path,attribute_data_path,output_transcriptomic_path+'transcriptomic_data.csv',sacrifice_period=sacrific_period,dose_level=dose_level,compound_name=compound_name)
+        transcriptomic_data_mapped = map_genes(transcriptomic_data,mapped_genes='data/microarray/gene_with_protein_product.txt',output=[output_transcriptomic_path+'transcriptomic_data_mapped.csv',output_transcriptomic_path+'transcriptomic_data_mapped_corrected.csv'])
+        # transcriptomic_data_mapped_normalized = riptide.read_transcription_file(output_transcriptomic_path+'transcriptomic_data_mapped_corrected.csv',sep=',',header=True)
+
+        # reaction_weights = dexom_python.apply_gpr(model,transcriptomic_data_mapped_reps,save=False)
+        # print(reaction_weights)
+        # dexom_solutions  = dexom_python.imat(model,reaction_weights)
+        # print(dexom_solutions.fluxes["biomass_reaction"])
+        # exit()
+
+        for reps in range(replicates):
             transcriptomic_data_mapped_reps = {k:v[reps] for k,v in transcriptomic_data_mapped.items()}
-            model = load_model('data/metabolic_networks/recon2.2.xml')
-            # max_fit = riptide.maxfit(model=model,transcriptome=transcriptomic_data_mapped,objective=False)
-            # riptide.save_output(riptide_obj=max_fit, path="results/riptide_recon2.2/"+sacrific_period.split(' ')[0]+'_'+dose_level+'_'+compound_name+'/',file_type='SBML')
-            riptide_object = riptide.contextualize(model,transcriptome = transcriptomic_data_mapped_reps,gpr=True,prune=True,objective=True,samples=10,fraction=0.8)
-            if sampling_coverage:
-                return riptide_object
-            if create_directory_if_not_exists(output_riptide_path):
-                riptide.save_output(riptide_obj=riptide_object, path=output_riptide_path,file_type='SBML')
-            # print(riptide_object.flux_samples)
-        else:
-            print('not a valid path for ', output_transcriptomic_path)
+            out = "results/riptide/recon2.2/maxfit/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
+
+            max_fit = riptide.maxfit(model=model,transcriptome=transcriptomic_data_mapped_reps,objective=True,prune=True,gpr=True,samples=samples)
+            if create_directory_if_not_exists(out):
+                riptide.save_output(riptide_obj=max_fit, path=out,file_type='SBML')
+        # reps = "NAN"
+        # output_riptide_path = "results/riptide/recon2.2/"+compound_name+'/1000/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
+
+        # riptide_object = riptide.contextualize(model,transcriptome = transcriptomic_data_mapped,gpr=True,prune=True,objective=True,samples=1000,fraction=0.8)
+        # if sampling_coverage:
+        #     return riptide_object
+        # if create_directory_if_not_exists(output_riptide_path):
+        #     riptide.save_output(riptide_obj=riptide_object, path=output_riptide_path,file_type='SBML')
+        # # print(riptide_object.flux_samples)
+    else:
+        print('not a valid path for ', output_transcriptomic_path)
 
 
 def imat_solutions():
