@@ -7,8 +7,9 @@
 #
 
 import scipy.stats
-import riptide_sampling, riptide, cobra
+import riptide_sampling
 import matplotlib.pyplot as plt
+from matplotlib_venn import venn2
 import arviz as az
 import os
 import pandas as pd
@@ -16,9 +17,6 @@ from statistics import mean
 import csv
 import scipy
 import numpy as np
-
-
-# SAMPLING=10
 
 def plot_samples(data,path):
     print(len(data.keys()))
@@ -30,10 +28,12 @@ def compute_R2(data_control,data_trmt,df_trmt_t,mol=str(),dose=str(),reps=str(),
     if riptide_sampling.create_directory_if_not_exists(dar_dir):
         dar_file = dar_dir+"ctrl_"+dose.lower()+"_"+reps+".txt"
         stats_dar = dar_dir+"KS_ctrl_"+dose.lower()+"_"+reps+".txt"
-        print(dar_file)
         not_in_trmt = set()
         not_in_ctrl = set()
         number_of_dar = set()
+        number_of_dar_KS = set()
+        trmt_and_ctrl = set()
+        trmt_and_ctrl_KS = set()
         with open(dar_file,"w") as f:
             with open(stats_dar,"w") as stats_dar_file:
                 for k,v in data_control.items():
@@ -44,11 +44,14 @@ def compute_R2(data_control,data_trmt,df_trmt_t,mol=str(),dose=str(),reps=str(),
                         n_active_trmt = len(list(el for el in data_trmt[k] if el != 0.))
                     
                         compute_two_sample_KS(v,data_trmt[k],k,dose,stats_dar_file,tag='both')
-
+                        trmt_and_ctrl_KS.add(k)
+                        number_of_dar_KS.add(k)
+                
                         r2 = ((n_active_ctrl/n_total_ctrl) - (n_active_trmt/n_total_trmt))**2
                         
                         if r2 > 0.2 : 
                             number_of_dar.add(k)
+                            trmt_and_ctrl.add(k)
                             f.write(str(k)+'\t'+str(f"{dose} dose treatment: \u2705 \t control treatment: \u2705\t"+str(r2)+'\n'))
 
                     else:
@@ -64,29 +67,30 @@ def compute_R2(data_control,data_trmt,df_trmt_t,mol=str(),dose=str(),reps=str(),
                         number_of_dar.add(k)
                         f.write(str(k)+'\t'+str(f"{dose} dose treatment: \u2705 \t control treatment: \u274c")+'\n')
 
+                number_of_dar_KS = number_of_dar_KS | number_of_dar
+                
+                react_count= key_points_of_comparaison(data_control,not_in_trmt,df_trmt_t,data_trmt)
+                tot_reactions = len(list(data_trmt.keys()))+len(data_control.keys())
 
-                both,all_ctrl,all_trmt,diff_trmt_ctrl,react_count = key_points_of_comparaison(data_control,not_in_trmt,df_trmt_t,data_trmt)
+                write_stats_file(trmt_and_ctrl_KS,not_in_ctrl,not_in_trmt,number_of_dar_KS,react_count,stats_dar_file,dose,tot_reactions)
+                write_stats_file(trmt_and_ctrl,not_in_ctrl,not_in_trmt,number_of_dar,react_count,f,dose,tot_reactions)
 
-                f.write(f"\nRatio of molecules find in both conditions: {round(both/len(set(data_control.keys())),3)}\n")
-                f.write(f"Ratio of molecules not find in the trmt condition but present in the controle condition: {round(100-both/len(set(data_control.keys())),3)}\n")
-                f.write(f"Ratio of molecules not find in the controle condition but present in the trmt condition: {round((len(diff_trmt_ctrl)/ len(all_trmt))*100,3)}\n")
+        return dar_file,stats_dar
 
-                ### compute minimal number of activated reactions, maximal number of activated reaction, average number of activated reaction
-                f.write(f"\nThe minimal number of activated reactions with a {dose} dose is {min(list(react_count.values()))}\n")
-                f.write(f"The maximal number of activated reactions with a {dose} dose is {max(list(react_count.values()))}\n")
-                f.write(f"The average number of activated reactions with a {dose} dose is {round(mean(list(react_count.values())),0)}\n")
-                dar_number = len(number_of_dar)
-                f.write(f"\nThe number of DAR is {dar_number}\n")
-                f.write(f"Total number of reactions: {len(list(data_trmt.keys()))}\n")
+def write_stats_file(trmt_ctrl,not_in_ctrl,not_in_trmt, dar,reac,files,dose,tot_reactions):
 
-                #TODO
-                # proportion of DAR reactions in both conditions
+    files.write(f"\nProportion of molecules find in both conditions: {round(len(trmt_ctrl)/len(dar)*100,3)}\n")
+    files.write(f"Proportion of molecules not find in the trmt condition but present in the control condition: {round(len(not_in_trmt)/len(dar)*100,3)}\n")
+    files.write(f"Proportion of molecules not find in the control condition but present in the trmt condition: {round((len(not_in_ctrl)/ len(dar))*100,3)}\n")
 
-                # proporrtion of DAR reactions present onnnnnly in one condition
-
-        return dar_file
-
-
+    ### compute minimal number of activated reactions, maximal number of activated reaction, average number of activated reaction
+    files.write(f"\nThe minimal number of activated reactions with a {dose} dose is {min(list(reac.values()))}\n")
+    files.write(f"The maximal number of activated reactions with a {dose} dose is {max(list(reac.values()))}\n")
+    files.write(f"The average number of activated reactions with a {dose} dose is {round(mean(list(reac.values())),0)}\n")
+    dar_number = len(dar)
+    files.write(f"\nThe number of DAR is {dar_number}\n")
+    files.write(f"Total number of reactions: {tot_reactions}\n")
+    files.write(f"Proportion of DAR: {round(dar_number/tot_reactions*100,3)}\n")
 
 def key_points_of_comparaison(data_control,not_in_trmt,df_trmt_t,data_trmt):
     react_count = dict()
@@ -100,17 +104,8 @@ def key_points_of_comparaison(data_control,not_in_trmt,df_trmt_t,data_trmt):
         if 0.0 in filtered_v:
             index = filtered_v.index(0.0)
             filtered_v.pop(index)
-        
         if filtered_v: react_count[k]=len(filtered_v)
-
-    # present in both conditions
-    both = (len(set(data_control.keys())) - len(not_in_trmt))*100
-    # present in the trmt condition but not in the control condition, i.e. the added value of the trmt
-    all_ctrl = set(data_control.keys())
-    all_trmt = set(data_trmt.keys())
-    diff_trmt_ctrl = all_trmt - all_ctrl
-
-    return both,all_ctrl,all_trmt,diff_trmt_ctrl, react_count
+    return react_count
 
 def df_to_dict(df):
     data={}
@@ -130,92 +125,32 @@ def read_sample_file(dir_path):
 
     return data,df_t,df
 
-def save_file(riptide_object,run):
-    output = "results/riptide/sampling_coverage/"+str(SAMPLING)
-    if riptide_sampling.create_directory_if_not_exists(output):
-        sampling_flux = riptide_object.flux_samples
-        sampling_flux.to_csv(output+"/run_"+str(run), sep='\t')
-    else:
-        print(f"not a valid path: {output}")
 
-def compute_dar_specificity_ratio(dars):
-    union_dar_r1_l = dars["amiodarone"]["replicate_0"]['Low'] | dars['valproic acid']["replicate_0"]['Low']
-    union_dar_r1_m = dars["amiodarone"]["replicate_0"]['Middle'] | dars['valproic acid']["replicate_0"]['Middle']
-    union_dar_r1_h = dars["amiodarone"]["replicate_0"]['High'] | dars['valproic acid']["replicate_0"]['High']
-    union_dar_r2_l = dars["amiodarone"]["replicate_1"]['Low'] | dars['valproic acid']["replicate_1"]['Low']
-    union_dar_r2_m = dars["amiodarone"]["replicate_1"]['Middle'] | dars['valproic acid']["replicate_1"]['Middle']
-    union_dar_r2_h = dars["amiodarone"]["replicate_1"]['High']  | dars['valproic acid']["replicate_1"]['High'] 
-    
-    intersection_dar_r1_l = dars["amiodarone"]["replicate_0"]['Low'] & dars['valproic acid']["replicate_0"]['Low']
-    intersection_dar_r1_m = dars["amiodarone"]["replicate_0"]['Middle'] & dars['valproic acid']["replicate_0"]['Middle']
-    intersection_dar_r1_h = dars["amiodarone"]["replicate_0"]['High'] & dars['valproic acid']["replicate_0"]['High']
-    intersection_dar_r2_l = dars["amiodarone"]["replicate_1"]['Low'] & dars['valproic acid']["replicate_1"]['Low']
-    intersection_dar_r2_m = dars["amiodarone"]["replicate_1"]['Middle'] & dars['valproic acid']["replicate_1"]['Middle']
-    intersection_dar_r2_h = dars["amiodarone"]["replicate_1"]['High'] & dars['valproic acid']["replicate_1"]['High']
-    
-    unique_dar_a_r1_l = dars["amiodarone"]["replicate_0"]['Low'] - dars['valproic acid']["replicate_0"]['Low']
-    unique_dar_a_r1_m = dars["amiodarone"]["replicate_0"]['Middle'] - dars['valproic acid']["replicate_0"]['Middle']
-    unique_dar_a_r1_h = dars["amiodarone"]["replicate_0"]['High'] - dars['valproic acid']["replicate_0"]['High']
-    unique_dar_a_r2_l = dars["amiodarone"]["replicate_1"]['Low'] - dars['valproic acid']["replicate_1"]['Low']
-    unique_dar_a_r2_m = dars["amiodarone"]["replicate_1"]['Middle'] - dars['valproic acid']["replicate_1"]['Middle']
-    unique_dar_a_r2_h = dars["amiodarone"]["replicate_1"]['High'] - dars['valproic acid']["replicate_1"]['High']
-    
-    unique_dar_v_r1_l = dars['valproic acid']["replicate_0"]['Low'] - dars["amiodarone"]["replicate_0"]['Low']
-    unique_dar_v_r1_m = dars['valproic acid']["replicate_0"]['Middle'] - dars["amiodarone"]["replicate_0"]['Middle']
-    unique_dar_v_r1_h = dars['valproic acid']["replicate_0"]['High'] - dars["amiodarone"]["replicate_0"]['High']
-    unique_dar_v_r2_l = dars['valproic acid']["replicate_1"]['Low'] - dars["amiodarone"]["replicate_1"]['Low']
-    unique_dar_v_r2_m = dars['valproic acid']["replicate_1"]['Middle'] - dars["amiodarone"]["replicate_1"]['Middle']
-    unique_dar_v_r2_h = dars['valproic acid']["replicate_1"]['High'] - dars["amiodarone"]["replicate_1"]['High']
+def compute_dar_specificity_ratio(dars,reps,dose,df,tag=""):
+    union_dar = dars["amiodarone"][reps][dose] | dars['valproic acid'][reps][dose]
+    intersection_dar = dars["amiodarone"][reps][dose] & dars['valproic acid'][reps][dose]
+    unique_dar_a = dars["amiodarone"][reps][dose] - dars['valproic acid'][reps][dose]
+    unique_dar_v = dars["valproic acid"][reps][dose] - dars['amiodarone'][reps][dose]
 
-    dar_a_r1_l = len(dars["amiodarone"]["replicate_0"]['Low'])
-    dar_a_r1_m = len(dars["amiodarone"]["replicate_0"]['Middle'])
-    dar_a_r1_h = len(dars["amiodarone"]["replicate_0"]['High'])
-    only_dar_a_r1_l = len(unique_dar_a_r1_l)
-    only_dar_a_r1_m = len(unique_dar_a_r1_m)
-    only_dar_a_r1_h = len(unique_dar_a_r1_h)
+    plt.figure()
+    venn2([dars["amiodarone"][reps][dose],dars['valproic acid'][reps][dose]])
+    plt.savefig("results/riptide/recon2.2/maxfit/a_v_"+reps+"_"+dose+'_'+tag+'.png')
 
-    dar_a_r2_l = len(dars["amiodarone"]["replicate_1"]['Low'])
-    dar_a_r2_m = len(dars["amiodarone"]["replicate_1"]['Middle'])
-    dar_a_r2_h = len(dars["amiodarone"]["replicate_1"]['High'])
-    only_dar_a_r2_l = len(unique_dar_a_r2_l)
-    only_dar_a_r2_m = len(unique_dar_a_r2_m)
-    only_dar_a_r2_h = len(unique_dar_a_r2_h)
+    dar_a = len(dars["amiodarone"][reps][dose])
+    only_dar_a = len(unique_dar_a)
+    dar_v = len(dars["valproic acid"][reps][dose])
+    only_dar_v = len(unique_dar_v)
 
-    dar_v_r1_l = len(dars["valproic acid"]["replicate_0"]['Low'])
-    dar_v_r1_m = len(dars["valproic acid"]["replicate_0"]['Middle'])
-    dar_v_r1_h = len(dars["valproic acid"]["replicate_0"])
-    only_dar_v_r1_l = len(unique_dar_v_r1_l)
-    only_dar_v_r1_m = len(unique_dar_v_r1_m)
-    only_dar_v_r1_h = len(unique_dar_v_r1_h)
+    df[f"union_a_v_{reps}_{dose}"] = pd.Series(list(union_dar))
+    df[f"intersection_a_v_{reps}_{dose}"] = pd.Series(list(intersection_dar))
+    df[f"unique_a_{reps}_{dose}"] = pd.Series(list(unique_dar_a))
+    df[f"unique_v_{reps}_{dose}"] = pd.Series(list(unique_dar_v))
 
-    dar_v_r2_l = len(dars["valproic acid"]["replicate_1"]['Low'])
-    dar_v_r2_m = len(dars["valproic acid"]["replicate_1"]['Middle'])
-    dar_v_r2_h = len(dars["valproic acid"]["replicate_1"]['High'])
-    only_dar_v_r2_l = len(unique_dar_v_r2_l)
-    only_dar_v_r2_m = len(unique_dar_v_r2_m)
-    only_dar_v_r2_h = len(unique_dar_v_r2_h)
+    print(f"\nProportion of common dars between amiodarone and valproic acid in {reps} for {dose} dose comparison: {round((len(intersection_dar)/len(union_dar))*100,2)}% ({len(intersection_dar)})")
+    print(f"Proportion of unique dar of amiodarone in {reps} for {dose} dose comparison: {round((only_dar_a/dar_a)*100,2)} % ({only_dar_a})")
+    print(f"Proportion of unique dar of valproic acid in {reps} for {dose} dose comparison: {round((only_dar_v/dar_v)*100,2)}% ({only_dar_v})")
 
-    print(f"\nRatio of common dars between amiodarone and valproic acid in replicates 1 for low dose comparison: {round((len(intersection_dar_r1_l)/len(union_dar_r1_l))*100,2)}%")
-    print(f"Ratio of common dars between amiodarone and valproic acid in replicates 1 for middle dose comparison: {round((len(intersection_dar_r1_m)/len(union_dar_r1_m))*100,2)}%")
-    print(f"Ratio of common dars between amiodarone and valproic acid in replicates 1 for high dose comparison: {round((len(intersection_dar_r1_h)/len(union_dar_r1_h))*100,2)}%")
-
-    print(f"Ratio of common dars between amiodarone and valproic acid in replicates 2 for low dose comparison: {round((len(intersection_dar_r2_l)/len(union_dar_r2_l))*100,2)}%")
-    print(f"Ratio of common dars between amiodarone and valproic acid in replicates 2 for middle dose comparison: {round((len(intersection_dar_r2_m)/len(union_dar_r2_m))*100,2)}%")
-    print(f"Ratio of common dars between amiodarone and valproic acid in replicates 2 for high dose comparison: {round((len(intersection_dar_r2_h)/len(union_dar_r2_h))*100,2)}%")
-    print(f"Ratio of unique dar of amiodarone in replicates 1 for low dose comparison: {round((only_dar_a_r1_l/dar_a_r1_l)*100,2)} %")
-    print(f"Ratio of unique dar of amiodarone in replicates 1 for middle dose comparison: {round((only_dar_a_r1_m/dar_a_r1_m)*100,2)} %")
-    print(f"Ratio of unique dar of amiodarone in replicates 1 for high dose comparison: {round((only_dar_a_r1_h/dar_a_r1_h)*100,2)} %")
-    print(f"Ratio of unique dar of amiodarone in replicates 2 for low dose comparison: {round((only_dar_a_r2_l/dar_a_r2_l)*100,2)} %")
-    print(f"Ratio of unique dar of amiodarone in replicates 2 for middle dose comparison: {round((only_dar_a_r2_m/dar_a_r2_m)*100,2)} %")
-    print(f"Ratio of unique dar of amiodarone in replicates 2 for high dose comparison: {round((only_dar_a_r2_h/dar_a_r2_h)*100,2)} %")
-    print(f"Ratio of unique dar of valproic acid in replicates 1 for low dose comparison: {round((only_dar_v_r1_l/dar_v_r1_l)*100,2)}%")
-    print(f"Ratio of unique dar of valproic acid in replicates 1 for middle dose comparison: {round((only_dar_v_r1_m/dar_v_r1_m)*100,2)}%")
-    print(f"Ratio of unique dar of valproic acid in replicates 1 for high dose comparison: {round((only_dar_v_r1_h/dar_v_r1_h)*100,2)}%")
-    print(f"Ratio of unique dar of valproic acid in replicates 2 for low dose comparison: {round((only_dar_v_r2_l/dar_v_r2_l)*100,2)}%")
-    print(f"Ratio of unique dar of valproic acid in replicates 2 for middle dose comparison: {round((only_dar_v_r2_m/dar_v_r2_m)*100,2)}%")
-    print(f"Ratio of unique dar of valproic acid in replicates 2 for high dose comparison: {round((only_dar_v_r2_h/dar_v_r2_h)*100,2)}%")
-
-
+    return df
 
 def read_dar_file(mol,reps,dose,dars,dar_file):
     with open(dar_file) as f:
@@ -223,28 +158,55 @@ def read_dar_file(mol,reps,dose,dars,dar_file):
         for line in dar_file:
             if len(line) > 1:
                 dars[mol][reps][dose].add(line[0])
-        
     return dars
             
 def r2_iteration():
     dars={}
+    dars_ks={}
     for mol in ["amiodarone","valproic acid"]:
         dars[mol] = {}
+        dars_ks[mol] = {}
         path_dar = "results/riptide/recon2.2/maxfit/"+mol+"/1000/"
         for reps in ["replicate_0","replicate_1"]:
             dars[mol][reps] = {}
+            dars_ks[mol][reps] = {}
             path_control = "results/riptide/recon2.2/maxfit/"+mol+"/1000/24_Control/"+reps
             data_ctrl,_,df_ctrl = read_sample_file(path_control)
             for dose in ["Low","Middle","High"]:
                 dars[mol][reps][dose] = set()
+                dars_ks[mol][reps][dose] = set()
                 path_trmt = 'results/riptide/recon2.2/maxfit/'+mol+'/1000/24_'+dose+'/'+reps
                 data_trmt,df_trmt_t,df_trmt = read_sample_file(path_trmt)
-                # data_trmt,df_trmt_t = read_sample_file('results/riptide/recon2.2/maxfit/'+mol+'/1000/24_'+dose+'/replicate_0')
-                # compute_R2(data_ctrl,data_trmt,df_trmt_t,mol=mol,dose=dose,reps="replicate_0")
-                dar_file = compute_R2(data_ctrl,data_trmt,df_trmt_t,mol=mol,dose=dose,reps=reps,dar_path=path_dar)
+                dar_file,stats_dar = compute_R2(data_ctrl,data_trmt,df_trmt_t,mol=mol,dose=dose,reps=reps,dar_path=path_dar)
                 dars = read_dar_file(mol,reps,dose,dars,dar_file)
-                # dars = read_dar_file(mol,"replicate_0",dose,dars)
-    compute_dar_specificity_ratio(dars)
+                dars_ks = read_dar_file(mol,reps,dose,dars_ks,stats_dar)
+    
+    df_r2 = pd.DataFrame()
+    df_ks = pd.DataFrame()
+
+    for reps in ["replicate_0","replicate_1"]:
+        for dose in ["Low","Middle","High"]:
+            df_r2 = compute_dar_specificity_ratio(dars,reps,dose,df_r2,tag='r2')
+            df_ks = compute_dar_specificity_ratio(dars_ks,reps,dose,df_ks,tag="ks")
+
+    df_r2 = df_r2.apply(lambda col: col.sort_values().reset_index(drop=True))
+    df_ks = df_ks.apply(lambda col: col.sort_values().reset_index(drop=True))
+    
+    result = []
+    columns = df_ks.columns
+
+    for i in range(len(columns)):
+        col1, col2 = columns[i], columns[i]
+        intersection = set(df_r2[col1]).intersection(set(df_ks[col2]))
+        diff_r2_ks = set(df_r2[col1]).difference(set(df_ks[col2]))
+        diff_ks_r2 = set(df_ks[col1]).difference(set(df_r2[col2]))
+        result.append({'Colonnes': col1,'Intersection': list(intersection), 'length intersection': len(intersection), 'difference_r2_ks': list(diff_r2_ks), 'length difference r2 ks': len(diff_r2_ks), 'difference_ks_r2': list(diff_ks_r2), 'length difference ks r2': len(diff_ks_r2)})
+
+    df_comparison = pd.DataFrame(result)
+    df_comparison.to_csv("results/riptide/recon2.2/maxfit/compare_r2_Ks.tsv",sep='\t')
+
+    df_r2.to_csv("results/riptide/recon2.2/maxfit/r2_dar.tsv",sep='\t')
+    df_ks.to_csv("results/riptide/recon2.2/maxfit/ks_dar.tsv",sep='\t')
 
 def compute_two_sample_KS(ctrl,trmt,k,dose, stat_dar_file,tag=str()):
     res = scipy.stats.ks_2samp(ctrl,trmt,mode = 'auto',alternative="two-sided") ## two_sided: the null hypothesis is that ctrl and trmt are identical (same continuous distribution)
@@ -255,22 +217,6 @@ def compute_two_sample_KS(ctrl,trmt,k,dose, stat_dar_file,tag=str()):
 
         stat_dar_file.write(str(k)+'\t'f"{conditions}\t{res.pvalue} \n")
 
-def assess_riptide_coverage():
-    transcript_abundances_rpm = riptide.read_transcription_file('data/tests/transcriptome1.tsv')
-    my_model = cobra.io.read_sbml_model('data/tests/model_riptide_complex.sbml')
-    all_solutions = []
-    for i in range(5):
-        # riptide_object = riptide.contextualize(model=my_model, transcriptome=transcript_abundances_rpm,objective=True,fraction=0.8,gpr=True,samples=SAMPLING,direct=False) # if True, Sets previous objective function as a constraint with minimum flux equal to user input fraction. Briefly, if biomass function must be taking into account during the contextualisation step
 
-        riptide_object = riptide_sampling.get_flux_samples('data/microarray/annotated_data_uniq_high_sd_flagged.tsv','data/microarray/open_tggates_cel_file_attribute.csv',sacrific_period='24 hr',dose_level='Control',compound_name='amiodarone',sampling_coverage=True)
-        save_file(riptide_object,i)
-        data = riptide_object.flux_samples.to_dict('list')
-        all_solutions.append(data)
-    plot_samples(all_solutions)
-
-# assess_riptide_coverage()
-# for p in ["results/riptide/recon2.2/amiodarone/24_Control/","results/riptide/recon2.2/amiodarone/24_High/","results/riptide/recon2.2/amiodarone/24_Low/","results/riptide/recon2.2/amiodarone/24_Middle/"]:
-#     data=read_sample_file(p)
-#     plot_samples(data,p)
-
-r2_iteration()
+if __name__ == "__main__":
+    r2_iteration()
