@@ -144,7 +144,7 @@ def compute_dar_specificity_ratio_intra_molecules(dars,dars_ks,mol,reps,dose,df)
     unique_dar = dars[mol][reps][dose] - dars_ks[mol][reps][dose]
     unique_dar_ks = dars_ks[mol][reps][dose] - dars[mol][reps][dose]
 
-    plt.rcParams['figure.max_open_warning'] = 100
+    plt.rcParams['figure.max_open_warning'] = 200
     plt.figure()
     venn2([dars[mol][reps][dose],dars_ks[mol][reps][dose]],set_labels = ("R2","KS"))
     plt.savefig("results/riptide/recon2.2/maxfit/intra_molecules_inter_DAR/"+mol+'_'+reps+"_"+dose+'.png', bbox_inches='tight')
