@@ -9,55 +9,9 @@
 import cobra
 import os
 import riptide
-from pathlib import Path
 import data_management
+import utils
 
-def load_model(model_path):
-    """ load and create cobra SBML model
-
-    Args:
-        model_path (str): Path of the SBML model
-
-    Returns:
-        cobra.core.Model
-    """    
-    return cobra.io.read_sbml_model(model_path)
-
-def create_directory_if_not_exists(path):
-    """ Create directory path from input path and check if the directory already exists
-
-    Args:
-        path (str): Path of the desired directory
-
-    Returns:
-        Bool
-    """    
-
-    if not os.path.exists(os.path.dirname(path)):
-        os.makedirs(os.path.dirname(path))
-        print(f"Le répertoire '{path}' a été créé.")
-    else:
-        print(f"Le répertoire '{path}' existe déjà.")
-    return True
-
-
-def get_fraction(path):
-    """Get fraction of optimum objective value from previous maxfit optimization
-
-    Args:
-        path (str): Path of the desired directory
-
-    Returns:
-        int: Fraction of optimum objective value
-    """    
-    if os.path.exists(path):
-        f = open(path)
-        line = f.readline()
-        return line.split(' ')[-1]
-    else:
-        print(f'No optimized fraction of optimum was find because the path {path} is invalid.\nFraction will be set to the defaut value of 0.8.')
-        return 0.8
-        
 
 def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_level=str(),compound_name=str(),sampling_coverage=False,replicates=int(),samples=int(),maxfit=bool()):
     """ Function to run RIPTiDe from TG-GATES MicroAray data. 
@@ -78,7 +32,7 @@ def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_le
     model = load_model('data/metabolic_networks/recon2v2_biomass_corrected_final.sbml')   
     model.name = 'data/metabolic_networks/recon2v2_biomass_corrected_final.sbml'
 
-    if create_directory_if_not_exists(output_transcriptomic_path):
+    if utils.create_directory_if_not_exists(output_transcriptomic_path):
         transcriptomic_data = data_management.data_filter(data_path,attribute_data_path,output_transcriptomic_path+'transcriptomic_data.csv',sacrifice_period=sacrific_period,dose_level=dose_level,compound_name=compound_name)
         transcriptomic_data_mapped = data_management.map_genes(transcriptomic_data,mapped_genes='data/microarray/gene_with_protein_product.txt',output=[output_transcriptomic_path+'transcriptomic_data_mapped.csv',output_transcriptomic_path+'transcriptomic_data_mapped_corrected.csv'])
         
@@ -93,12 +47,12 @@ def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_le
                 out = "results/riptide/recon2.2/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
                 riptide_object = riptide.contextualize(model=model,transcriptome=transcriptomic_data_mapped_reps,objective=True,prune=True,gpr=True,samples=samples,fraction=fraction)
 
-            if create_directory_if_not_exists(out):
+            if utils.create_directory_if_not_exists(out):
                 riptide.save_output(riptide_obj=riptide_object, path=out,file_type='SBML')
 
     else:
         print('not a valid path for ', output_transcriptomic_path)
 
     if sampling_coverage:
-        import sampling_coverage
-        sampling_coverage.r2_iteration()
+        import calcul
+        calcul.r2_iteration()
