@@ -33,7 +33,7 @@ def r2_iteration():
         replicate_analysis_ks[mol] = {}
         imat_riptide[mol] = {}
 
-        path_dar = "results/riptide/recon2.2/maxfit/"+mol+"/1000/"
+        path_dar = "results/riptide/recon2.2/maxfit/"+mol+"/10000/"
         for reps in REPLICATES:
             dars[mol][reps] = {}
             dars_ks[mol][reps] = {}
@@ -41,7 +41,7 @@ def r2_iteration():
             replicate_analysis_ks[mol][reps] = {}
             imat_riptide[mol][reps] = {}
 
-            path_control = "results/riptide/recon2.2/maxfit/"+mol+"/1000/24_Control/"+reps
+            path_control = "results/riptide/recon2.2/maxfit/"+mol+"/10000/24_Control/"+reps
             data_ctrl,_,df_ctrl = utils.read_sample_file(path_control)
 
             for dose in DOSE_LEVEL:
@@ -52,33 +52,31 @@ def r2_iteration():
                 imat_riptide[mol][reps][dose] = {}
 
 
-                path_trmt = 'results/riptide/recon2.2/maxfit/'+mol+'/1000/24_'+dose+'/'+reps
+                path_trmt = 'results/riptide/recon2.2/maxfit/'+mol+'/10000/24_'+dose+'/'+reps
                 data_trmt,df_trmt_t,df_trmt = utils.read_sample_file(path_trmt)
                 dar_file,stats_dar,replicate_analysis,replicate_analysis_ks = calcul.compute_R2(data_ctrl,data_trmt,df_trmt_t,replicate_analysis,replicate_analysis_ks,mol=mol,dose=dose,reps=reps,dar_path=path_dar)
                 dars = utils.read_dar_file(mol,reps,dose,dars,dar_file)
                 dars_ks = utils.read_dar_file(mol,reps,dose,dars_ks,stats_dar)
     
-    # # quid replicats ?
-    # replicat_intra_molecule(replicate_analysis,tag='r2')
-    # replicat_intra_molecule(replicate_analysis_ks,tag='ks')
+    # quid replicats ?
+    replicat_intra_molecule(replicate_analysis,tag='r2')
+    replicat_intra_molecule(replicate_analysis_ks,tag='ks')
 
-    # # ## inter molecules & DAR identification methods on RIPTiDe
-    # inter_molecules_and_dar_with_riptide(dars,reps,dose,dars_ks)
+    # ## inter molecules & DAR identification methods on RIPTiDe
+    inter_molecules_and_dar_with_riptide(dars,reps,dose,dars_ks)
     
-    # # ## intra molecules & inter DAR identification methods on RIPTiDe
-    # intra_molecules_and_inter_dar_with_riptide(dars,reps,dose,dars_ks)
+    # ## intra molecules & inter DAR identification methods on RIPTiDe
+    intra_molecules_and_inter_dar_with_riptide(dars,reps,dose,dars_ks)
 
-    # # inter_molecules & DAR identification methods on iMAT
-    # inter_molecules_and_dar_with_imat()
+    # inter_molecules & DAR identification methods on iMAT
+    inter_molecules_and_dar_with_imat()
     
-    # # intra molecules & inter DAR identification methods on iMAT
-    # intra_molecules_and_inter_dar_with_imat()
+    # intra molecules & inter DAR identification methods on iMAT
+    intra_molecules_and_inter_dar_with_imat()
 
-    # ## intra_molecules & inter DAR identification methods on iMAT and riptide
+    ## intra_molecules & inter DAR identification methods on iMAT and riptide
     intra_molecules_inter_dar_and_context_methods(dars,dars_ks)
 
-    # ## inter_molecules & DAR identification methods on iMAT and riptide
-    inter_molecules_inter_dar_and_context_methods(dars,dars_ks)
     
 def replicat_intra_molecule(replicate_analysis,tag=''):
     all_analysis = {}
@@ -141,16 +139,15 @@ def inter_molecules_and_dar_with_riptide(dars,reps,dose,dars_ks):
     model = cobra.io.read_sbml_model("data/metabolic_networks/recon2.2.xml")
 
     for col in df_ks:
-        if 'union_a_v_replicate_' in col:
-            list_reaction_ks = list(df_ks[col].values)
-            annot_df_ks = generate_annotation_table(list_reaction_ks,"results/riptide/recon2.2/maxfit/inter_molecules/ks_dar_annotated_"+col+".tsv",model)
+        list_reaction_ks = list(df_ks[col].values)
+        annot_df_ks = generate_annotation_table(list_reaction_ks,"results/riptide/recon2.2/maxfit/inter_molecules/annotation/ks_dar_annotated_"+col+".tsv",model)
 
-            list_reaction_r2 = list(df_r2[col].values)
-            annot_df_r2 = generate_annotation_table(list_reaction_r2,"results/riptide/recon2.2/maxfit/inter_molecules/r2_dar_annotated_"+col+".tsv",model)
+        list_reaction_r2 = list(df_r2[col].values)
+        annot_df_r2 = generate_annotation_table(list_reaction_r2,"results/riptide/recon2.2/maxfit/inter_molecules/annotation/r2_dar_annotated_"+col+".tsv",model)
 
-            plt.figure()
-            venn2([set(annot_df_ks["Pathway in model"].values),set(annot_df_r2["Pathway in model"].values)], set_labels = ("KS","R2"))
-            plt.savefig("results/riptide/recon2.2/maxfit/inter_molecules/dar_annotated_"+col+".png", bbox_inches='tight')
+        plt.figure()
+        venn2([set(annot_df_ks["Pathway in model"].values),set(annot_df_r2["Pathway in model"].values)], set_labels = ("KS","R2"))
+        plt.savefig("results/riptide/recon2.2/maxfit/inter_molecules/annotation/dar_annotated_"+col+".png", bbox_inches='tight')
 
 
 def inter_molecules_and_dar_with_imat():
@@ -187,19 +184,19 @@ def inter_molecules_and_dar_with_imat():
 
     df_comparison = pd.DataFrame(result)
     df_comparison.to_csv("results/iMAT/recon2.2/inter_molecules/compare_r2_Ks.tsv",sep='\t')
-    
+
+
     model = cobra.io.read_sbml_model("data/metabolic_networks/recon2.2.xml")
     for col in df_ks:
-        if 'union_a_v_' in col:
-            list_reaction_ks = list(df_ks[col].values)
-            annot_df_ks = generate_annotation_table(list_reaction_ks,"results/iMAT/recon2.2/inter_molecules/ks_dar_annotated_"+col+".tsv",model)
+        list_reaction_ks = list(df_ks[col].values)
+        annot_df_ks = generate_annotation_table(list_reaction_ks,"results/iMAT/recon2.2/inter_molecules/annotation/ks_dar_annotated_"+col+".tsv",model)
 
-            list_reaction_r2 = list(df_r2[col].values)
-            annot_df_r2 = generate_annotation_table(list_reaction_r2,"results/iMAT/recon2.2/inter_molecules/r2_dar_annotated_"+col+".tsv",model)
+        list_reaction_r2 = list(df_r2[col].values)
+        annot_df_r2 = generate_annotation_table(list_reaction_r2,"results/iMAT/recon2.2/inter_molecules/annotation/r2_dar_annotated_"+col+".tsv",model)
 
-            plt.figure()
-            venn2([set(annot_df_ks["Pathway in model"].values),set(annot_df_r2["Pathway in model"].values)], set_labels = ("KS","R2"))
-            plt.savefig("results/iMAT/recon2.2/inter_molecules/dar_annotated_"+col+".png", bbox_inches='tight')
+        plt.figure()
+        venn2([set(annot_df_ks["Pathway in model"].values),set(annot_df_r2["Pathway in model"].values)], set_labels = ("KS","R2"))
+        plt.savefig("results/iMAT/recon2.2/inter_molecules/annotation/dar_annotated_"+col+".png", bbox_inches='tight')
 
     df_r2.to_csv("results/iMAT/recon2.2/inter_molecules/r2_dar.tsv",sep='\t')
     df_ks.to_csv("results/iMAT/recon2.2/inter_molecules/ks_dar.tsv",sep='\t')
@@ -207,25 +204,39 @@ def inter_molecules_and_dar_with_imat():
 
 def intra_molecules_and_inter_dar_with_riptide(dars,reps,dose,dars_ks):
     df_mol = pd.DataFrame()
-
+    model = cobra.io.read_sbml_model("data/metabolic_networks/recon2.2.xml")
     for mol in MOLECULES:
         for reps in REPLICATES:
             for dose in DOSE_LEVEL:
                 df_mol = calcul.compute_dar_specificity_ratio_intra_molecules(dars,dars_ks,mol,reps,dose,df_mol)
+
+    annotation_intra_molecules_and_inter_dar_with_riptide(dars_ks,dars,model)
+            
 
     df_mol = df_mol.apply(lambda col: col.sort_values().reset_index(drop=True))
     df_mol.to_csv("results/riptide/recon2.2/maxfit/intra_molecules_inter_DAR/r2_ks_dar.tsv",sep='\t')
 
 
 def intra_molecules_and_inter_dar_with_imat():
-
     ## no replicates here
+    model = cobra.io.read_sbml_model("data/metabolic_networks/recon2.2.xml")
+
     result = []
     for mol in MOLECULES:
         df_r2 = pd.read_csv("results/iMAT/recon2.2/DAR/ctrl_High_"+mol+"_r2.txt",header=None)
         df_ks = pd.read_csv("results/iMAT/recon2.2/DAR/ctrl_High_"+mol+"_ks.txt",header=None)
         df_r2.columns = ['dar']
         df_ks.columns = ['dar']
+
+        list_reaction_ks = list(df_ks['dar'].values)
+        annot_df_ks = generate_annotation_table(list_reaction_ks,"results/iMAT/recon2.2/intra_molecules_inter_DAR/annotation/ks_dar_annotated_"+mol+"_High.tsv",model)
+
+        list_reaction_r2 = list(df_r2['dar'].values)
+        annot_df_r2 = generate_annotation_table(list_reaction_r2,"results/iMAT/recon2.2/intra_molecules_inter_DAR/annotation/r2_dar_annotated_"+mol+"_High.tsv",model)
+
+        plt.figure()
+        venn2([set(annot_df_ks["Pathway in model"].values),set(annot_df_r2["Pathway in model"].values)], set_labels = ("KS","R2"))
+        plt.savefig("results/iMAT/recon2.2/intra_molecules_inter_DAR/annotation/dar_annotated_"+mol+"_High.png", bbox_inches='tight')
 
         intersection = set(df_r2['dar']).intersection(set(df_ks['dar']))
         diff_r2_ks = set(df_r2['dar']).difference(set(df_ks['dar']))
@@ -302,6 +313,36 @@ def generate_annotation_table(reaction_list,output_path,model):
     annot_df = pd.DataFrame(annot)
     annot_df.to_csv(output_path,sep='\t')
     return annot_df
+
+def annotation_intra_molecules_and_inter_dar_with_riptide(dars_ks,dars,model):
+    for mol in MOLECULES:
+        for reps in REPLICATES:
+            for dose in DOSE_LEVEL:
+                result = []
+                list_reaction_ks = list(dars_ks[mol][reps][dose])
+                annot_df_ks = generate_annotation_table(list_reaction_ks,"results/riptide/recon2.2/maxfit/intra_molecules_inter_DAR/annotation/ks_dar_annotated_"+mol+"_"+reps+"_"+dose+".tsv",model)
+
+                list_reaction_r2 = list(dars[mol][reps][dose])
+                annot_df_r2 = generate_annotation_table(list_reaction_r2,"results/riptide/recon2.2/maxfit/intra_molecules_inter_DAR/annotation/r2_dar_annotated_"+mol+"_"+reps+"_"+dose+".tsv",model)
+
+                plt.figure()
+                venn2([set(annot_df_ks["Pathway in model"].values),set(annot_df_r2["Pathway in model"].values)], set_labels = ("KS","R2"))
+                plt.savefig("results/riptide/recon2.2/maxfit/intra_molecules_inter_DAR/annotation/dar_annotated_"+mol+"_"+reps+"_"+dose+".png", bbox_inches='tight')
+                        
+                intersection_0 = set(annot_df_r2["Pathway in model"]).intersection(set(annot_df_ks["Pathway in model"]))
+                diff_r2_ks_0 = set(annot_df_r2["Pathway in model"]).difference(set(annot_df_ks["Pathway in model"]))
+                diff_ks_r2_0 = set(annot_df_ks["Pathway in model"]).difference(set(annot_df_r2["Pathway in model"]))
+
+                diff_ks_r2_0 = utils.remove_nan_from_list(diff_ks_r2_0)
+                diff_r2_ks_0 = utils.remove_nan_from_list(diff_r2_ks_0)
+                intersection_0 = utils.remove_nan_from_list(intersection_0)
+
+
+                result.append({'Intersection_0': list(intersection_0), 'length intersection_0': len(intersection_0), 'difference_r2_ks_0': list(diff_r2_ks_0), 'length difference r2 ks': len(diff_r2_ks_0), 'difference_ks_r2_0': list(diff_ks_r2_0), 'length difference ks r2_0': len(diff_ks_r2_0)})
+
+                df_comparison = pd.DataFrame(result)
+                df_comparison.to_csv("results/riptide/recon2.2/maxfit/intra_molecules_inter_DAR/annotation/dar_annotated_"+mol+"_"+reps+"_"+dose+".tsv",sep='\t')
+
 
 if __name__ == "__main__":
     r2_iteration()
