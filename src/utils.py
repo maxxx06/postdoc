@@ -12,6 +12,7 @@ import csv
 import arviz as az
 from statistics import mean
 import matplotlib.pyplot as plt
+import cobra
 
 
 def write_stats_file(trmt_ctrl,not_in_ctrl,not_in_trmt, dar,reac,files,dose,tot_reactions):
@@ -42,11 +43,20 @@ def read_sample_file(dir_path):
     files = [f for f in os.listdir(dir_path) if 'samples' in f]
     for f in files:
         df=pd.DataFrame()
-        df = pd.read_csv(dir_path+'/'+f,sep='\t')
+        df = pd.read_csv(dir_path+'/'+f,sep='\t',index_col='Unnamed: 0')
         df_t = df.transpose()
-        data = df_to_dict(df)
+        # data = df_to_dict(df)
 
-    return data,df_t,df
+    return df_t,df
+
+def read_sample_file_imat(dir_path):
+    file = [f for f in os.listdir(dir_path)][0]
+    df=pd.DataFrame()
+    df = pd.read_csv(dir_path+'/'+file,sep=',',index_col='Unnamed: 0').head(n=1000)
+    df_t = df.transpose()
+    # data = df_to_dict(df)
+
+    return df_t,df
 
 
 def read_dar_file(mol,reps,dose,dars,dar_file):
