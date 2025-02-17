@@ -6,8 +6,6 @@
 #
 #
 
-import cobra
-import os
 import riptide
 import data_management
 import utils
@@ -29,7 +27,7 @@ def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_le
     """    
     
     output_transcriptomic_path = 'data/microarray/'+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/'
-    model = load_model('data/metabolic_networks/recon2v2_biomass_corrected_final.sbml')   
+    model = utils.load_model('data/metabolic_networks/recon2v2_biomass_corrected_final.sbml')   
     model.name = 'data/metabolic_networks/recon2v2_biomass_corrected_final.sbml'
 
     if utils.create_directory_if_not_exists(output_transcriptomic_path):
@@ -43,7 +41,7 @@ def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_le
                 riptide_object = riptide.maxfit(model=model,transcriptome=transcriptomic_data_mapped_reps,objective=True,prune=True,gpr=True,samples=samples)
 
             elif maxfit == False:
-                fraction = get_fraction("results/riptide/recon2.2/maxfit/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/parameters.txt')
+                fraction = utils.get_fraction("results/riptide/recon2.2/maxfit/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/parameters.txt')
                 out = "results/riptide/recon2.2/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
                 riptide_object = riptide.contextualize(model=model,transcriptome=transcriptomic_data_mapped_reps,objective=True,prune=True,gpr=True,samples=samples,fraction=fraction)
 
@@ -54,5 +52,5 @@ def get_flux_samples(data_path,attribute_data_path,sacrific_period=str(),dose_le
         print('not a valid path for ', output_transcriptomic_path)
 
     if sampling_coverage:
-        import calcul
-        calcul.r2_iteration()
+        import sampling_coverage
+        sampling_coverage.r2_iteration()
