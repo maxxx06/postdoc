@@ -30,6 +30,14 @@ DOSE_LEVEL = ["Control","Low","Middle","High"]
 plt.rcParams['figure.max_open_warning'] = 200
 
 def r2_iteration():
+    """
+    Executes the analysis of R2, KS or chi2 values for different tools (RIPTiDe and MANA).
+    The analysis includes intra-molecule replicates, inter-molecule DAR identification,
+    and comparisons between the tools (RIPTiDe and MANA) using R2 and chi-squared (KS) statistics.
+
+    It calls `run_tools` for each tool, performs replicat analysis, and outputs results
+    for both intra-molecule and inter-molecule DAR identification methods.
+    """
     start1 = time.time()
     run_tools(tool="riptide")
     print(f'R2 et KS computed from RIPTiDe data: {str(datetime.timedelta(seconds=round(time.time() - start1)))}')
@@ -67,6 +75,14 @@ def r2_iteration():
     print(f'all workflow analysis performed in : {str(datetime.timedelta(seconds=round(time.time() - start1)))}')
 
 def run_tools(tool=str()):
+    """
+    This function processes the input files, computes frequency tables for each dose level and replicate,
+    calculates statistical measures like R2 and KS (or chi-squared), executes the analysis of frequency tables and DAR computation for a given tool (either RIPTiDe or MANA). and stores the results in appropriate directories.
+    Outputs the results of the computations as TSV files.
+
+    Args:
+        tool (str): The tool to use for the analysis ('riptide' or 'mana').
+    """
     for mol in MOLECULES:
         if tool == 'riptide':
             path_dar = "results/riptide/recon2.2/maxfit/"+mol+"/10000/"
@@ -114,6 +130,18 @@ def run_tools(tool=str()):
                     freq_merged.to_csv(path_dar+"DAR/files/freq_"+dose+".tsv",sep='\t')
 
 def replicat_intra_molecule(dar_path,model,tag='',tool=''):
+    """
+    Performs an intra-molecule replicat analysis for a given tool (RIPTiDe or MANA).
+    Computes the intersection, unique reactions for each replicate, and outputs the results.
+    
+    Also generates and saves Venn diagrams representing the overlap between replicates for each dose level, at DAR and pathway levels.
+
+    Args:
+        dar_path (str): The path where DAR results are stored.
+        model (cobra.Model): The metabolic network model used for annotation.
+        tag (str): The type of analysis ('r2', 'ks', or 'chi2').
+        tool (str): The tool used for analysis ('riptide' or 'mana').
+    """
     analysis = pd.DataFrame(columns=['union','intersection','unique_rep_1','unique_rep_2'])
     for mol in MOLECULES:
         if tool == 'mana' and tag == 'r2': 
@@ -173,6 +201,19 @@ def replicat_intra_molecule(dar_path,model,tag='',tool=''):
                     plt.savefig("results/riptide/recon2.2/maxfit/intra_molecules_intra_DAR/annotation/images/df_annot_replicates_"+mol+"_"+dose+"_"+tag+".png", bbox_inches='tight')
 
 def inter_molecules_and_dar(path_dar,model,tool=''):
+    """
+    Compares DAR specificity ratios (R2 and Chi2/ KS) across molecules and generates associated plots and annotations.
+
+    Parameters:
+    - path_dar (str): The directory path containing the DAR data files.
+    - model (object): The model object used for generating annotations.
+    - tool (str, optional): The tool to use for computation ('mana' or 'riptide'). Default is ''.
+
+    This function processes the DAR specificity ratios for different molecules and doses across replicates. 
+    It calculates the intersection and differences between the R2 and Chi2/ KS ratios for molecules, then 
+    saves results to appropriate directories. It also generates and saves Venn diagrams for visualizing 
+    the relationships between reactions and pathways in the model.
+    """
     df_r2 = pd.DataFrame()
     df_ks = pd.DataFrame()
 
@@ -234,6 +275,20 @@ def inter_molecules_and_dar(path_dar,model,tool=''):
             plt.savefig("results/riptide/recon2.2/maxfit/inter_molecules/annotation/images/df_dar_annotated_"+col+".png", bbox_inches='tight')
 
 def intra_molecules_and_inter_dar(path_dar,model,tool=''):
+    """
+    Computes intra-molecule DAR specificity ratios and performs annotation for inter-DAR data.
+
+    Parameters:
+    - path_dar (str): The directory path containing the DAR data files.
+    - model (object): The model object used for generating annotations.
+    - tool (str, optional): The tool to use for computation ('mana' or 'riptide'). Default is ''.
+
+    This function calculates the DAR specificity ratio for intra-molecule interactions, considering different 
+    replicates and doses. It processes data for either 'riptide' or 'mana' tools, applies sorting, and 
+    generates results that are saved to the specified directory. The function also calls an annotation function 
+    for further data interpretation.
+    """
+
     df_mol = pd.DataFrame()
     for mol in MOLECULES:
         for reps in REPLICATES:
@@ -253,7 +308,19 @@ def intra_molecules_and_inter_dar(path_dar,model,tool=''):
     df_mol.to_csv(path_dar+"/intra_molecules_inter_DAR/files/df_r2_"+tag+"_dar.tsv",sep='\t')
 
 def intra_molecules_inter_dar_and_context_methods(path_dar,path_dar_mana,model):
-    from venny4py.venny4py import venny4py
+    """
+    Compares intra-molecule interactions across different context methods (e.g., 'mana' and 'riptide').
+
+    Parameters:
+    - path_dar (str): The directory path containing the DAR data files for 'riptide'.
+    - path_dar_mana (str): The directory path containing the DAR data files for 'mana'.
+    - model (object): The model object used for generating annotations.
+
+    This function compares intra-molecule DAR specificity ratios across different context methods ('mana' and 
+    'riptide') for each molecule and replicate. It generates and saves UpSet plots, Venn diagrams, and 
+    annotations that highlight intersections and differences between the context methods. The results are saved 
+    to respective files, and figures representing the comparisons are saved as images.
+    """
 
     result = []
     for mol in MOLECULES:
@@ -323,6 +390,22 @@ def intra_molecules_inter_dar_and_context_methods(path_dar,path_dar_mana,model):
             plt.savefig(f"results/comparison_between_context_method/images/annot_df_High_r2_{mol}_{reps}.png", bbox_inches='tight')
             
 def generate_annotation_table(reaction_list,output_path,model):
+    """
+    Generates an annotation table for a list of reactions, including pathway information, and saves it to a file.
+
+    Parameters:
+    - reaction_list (list): A list of reaction IDs to be annotated.
+    - output_path (str): The path where the generated annotation table will be saved.
+    - model (object): The model object that contains the reactions and their corresponding subsystems.
+
+    Returns:
+    - annot_df (DataFrame): A pandas DataFrame containing the reaction annotations, including the pathways in the model.
+
+    This function processes a list of reactions and generates annotations based on their corresponding subsystems 
+    in the model. Reactions that belong to exchange, demand, or sink types are labeled accordingly. For other reactions, 
+    the pathway information is retrieved from the model. The resulting annotations are stored in a DataFrame and 
+    saved to the specified output path as a tab-separated file.
+    """
     annot = {}
     annot["Pathway in model"] = {}
     reaction_list = utils.remove_nan_from_list(list(reaction_list))
@@ -345,6 +428,19 @@ def generate_annotation_table(reaction_list,output_path,model):
     return annot_df
 
 def annotation_intra_molecules_and_inter_dar(path_dar,model,tool=''):
+    """
+    Annotates intra-molecule DAR specificity ratios and generates pathway comparison reports for different context methods.
+
+    Parameters:
+    - path_dar (str): The directory path containing the DAR data files.
+    - model (object): The model object used for generating annotations.
+    - tool (str, optional): The tool to use for computation ('mana' or 'riptide'). Default is ''.
+
+    This function processes DAR specificity ratios for different molecules, doses, and replicates across the specified 
+    tool ('mana' or 'riptide'). It generates annotated tables for both R2 and Chi2/KS reactions, creates Venn diagrams 
+    comparing the pathways associated with these reactions, and saves the results to files. The intersections and 
+    differences in the pathways are also calculated and saved for further analysis.
+    """
     for mol in MOLECULES:
         for dose in DOSE_LEVEL:
             for reps in REPLICATES:
