@@ -48,19 +48,19 @@ def r2_iteration():
     replicat_intra_molecule(path_dar,model,tag='r2',tool='riptide')
     replicat_intra_molecule(path_dar,model,tag='ks',tool='riptide')
 
-    replicat_intra_molecule(path_dar_mana,model,tag='r2',tool='iMAT')
-    replicat_intra_molecule(path_dar_mana,model,tag='chi2',tool='iMAT')    
+    replicat_intra_molecule(path_dar_mana,model,tag='r2',tool='mana')
+    replicat_intra_molecule(path_dar_mana,model,tag='chi2',tool='mana')    
     ## inter molecules & DAR identification methods
     print("\n******* inter molecules and dar **********")
     inter_molecules_and_dar(path_dar,model,tool='riptide')
-    inter_molecules_and_dar(path_dar_mana,model,tool='iMAT')
+    inter_molecules_and_dar(path_dar_mana,model,tool='mana')
     
     # ## intra molecules & inter DAR identification methods
     print("\n******* intra molecules and inter dar **********")
     intra_molecules_and_inter_dar(path_dar,model,tool='riptide')
-    intra_molecules_and_inter_dar(path_dar_mana,model,tool='iMAT')
+    intra_molecules_and_inter_dar(path_dar_mana,model,tool='mana')
 
-    ## intra_molecules & inter DAR identification methods on iMAT and riptide
+    ## intra_molecules & inter DAR identification methods on mana and riptide
     print("\n******* between MANA and RIPTiDe **********")
     intra_molecules_inter_dar_and_context_methods(path_dar,path_dar_mana,model)
     print(f'analysis performed in : {str(datetime.timedelta(seconds=round(time.time() - start)))}')
@@ -116,9 +116,9 @@ def run_tools(tool=str()):
 def replicat_intra_molecule(dar_path,model,tag='',tool=''):
     analysis = pd.DataFrame(columns=['union','intersection','unique_rep_1','unique_rep_2'])
     for mol in MOLECULES:
-        if tool == 'iMAT' and tag == 'r2': 
+        if tool == 'mana' and tag == 'r2': 
             path_dar=dar_path+mol+"/DAR/files/"
-        elif tool == 'iMAT' and tag == 'chi2':
+        elif tool == 'mana' and tag == 'chi2':
             path_dar=dar_path+mol+"/DAR/files/"+tag+'_'
 
         elif tool == 'riptide' and tag == 'r2': 
@@ -156,7 +156,7 @@ def replicat_intra_molecule(dar_path,model,tag='',tool=''):
                 list_reaction_ks = list(set(rep0.values))
                 list_reaction_r2 = list(set(rep1.values))
                 
-                if tool == 'iMAT':
+                if tool == 'mana':
                     annot_df_ks = generate_annotation_table(list_reaction_ks,"results/iMAT/recon2.2/intra_molecules_intra_DAR/annotation/files/df_annot_replicates_"+mol+"_"+dose+"_"+tag+".tsv",model)
                     annot_df_r2 = generate_annotation_table(list_reaction_r2,"results/iMAT/recon2.2/intra_molecules_intra_DAR/annotation/files/df_annot_replicates_"+mol+"_"+dose+"_"+tag+".tsv",model)
 
@@ -177,7 +177,7 @@ def inter_molecules_and_dar(path_dar,model,tool=''):
     df_ks = pd.DataFrame()
 
     for reps in REPLICATES:
-        if tool == 'iMAT':
+        if tool == 'mana':
             df_r2 = calcul.compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,"High",df_r2,MOLECULES,model,tag='r2')
             df_ks = calcul.compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,"High",df_ks,MOLECULES,model,tag='chi2')
         else:
@@ -204,7 +204,7 @@ def inter_molecules_and_dar(path_dar,model,tool=''):
         result.append({'Colonnes': df_ks.columns[i],'Intersection': intersection, 'length intersection': len(intersection), 'difference_r2_ks': diff_r2_ks , 'length difference r2 ks': len(diff_r2_ks), 'difference_ks_r2': diff_ks_r2, 'length difference ks r2': len(diff_ks_r2)})
 
     df_comparison = pd.DataFrame(result)
-    if tool == 'iMAT':
+    if tool == 'mana':
         df_comparison.to_csv("results/iMAT/recon2.2/inter_molecules/files/df_compare_r2_chi2.tsv",sep='\t')
         df_r2.to_csv("results/iMAT/recon2.2/inter_molecules/files/df_r2_dar.tsv",sep='\t')
         df_ks.to_csv("results/iMAT/recon2.2/inter_molecules/files/df_chi2_dar.tsv",sep='\t')
@@ -218,7 +218,7 @@ def inter_molecules_and_dar(path_dar,model,tool=''):
         list_reaction_ks = list(set(df_ks[col].values))
         list_reaction_r2 = list(set(df_r2[col].values))
         
-        if tool == 'iMAT':
+        if tool == 'mana':
             annot_df_ks = generate_annotation_table(list_reaction_ks,"results/iMAT/recon2.2/inter_molecules/annotation/files/df_chi2_dar_annotated_"+col+".tsv",model)
             annot_df_r2 = generate_annotation_table(list_reaction_r2,"results/iMAT/recon2.2/inter_molecules/annotation/files/df_r2_dar_annotated_"+col+".tsv",model)
             plt.figure()
@@ -242,7 +242,7 @@ def intra_molecules_and_inter_dar(path_dar,model,tool=''):
                 for dose in DOSE_LEVEL:
                     if dose != 'Control':
                         df_mol = calcul.compute_dar_specificity_ratio_intra_molecules(path_dar,tool,mol,reps,dose,df_mol)
-            elif tool == 'iMAT':
+            elif tool == 'mana':
                 tag = 'chi2'
                 df_mol = calcul.compute_dar_specificity_ratio_intra_molecules(path_dar,tool,mol,reps,'High',df_mol)
 
@@ -348,7 +348,7 @@ def annotation_intra_molecules_and_inter_dar(path_dar,model,tool=''):
     for mol in MOLECULES:
         for dose in DOSE_LEVEL:
             for reps in REPLICATES:
-                if tool == 'iMAT': 
+                if tool == 'mana': 
                     path_dar_r2 = path_dar+mol+"/DAR/files/ctrl_High_"+reps+'.tsv'
                     path_dar_ks = path_dar+mol+"/DAR/files/chi2_ctrl_High_"+reps+'.tsv'
                     
@@ -358,7 +358,7 @@ def annotation_intra_molecules_and_inter_dar(path_dar,model,tool=''):
 
                 if os.path.exists(path_dar_r2) and os.path.exists(path_dar_ks):
                     output = path_dar+"/intra_molecules_inter_DAR/annotation/"
-                    if tool == "iMAT": tag = "chi2"
+                    if tool == "mana": tag = "chi2"
                     elif tool == "riptide": tag = "ks"
                     mol_ks = pd.read_csv(path_dar_ks,sep='\t',index_col="reactions")
                     mol_r2 = pd.read_csv(path_dar_r2,sep='\t',index_col="Unnamed: 0")
@@ -370,7 +370,7 @@ def annotation_intra_molecules_and_inter_dar(path_dar,model,tool=''):
                     list_reaction_r2 = list(mol_r2.index)
                     annot_df_r2 = generate_annotation_table(list_reaction_r2,output+"files/df_r2_dar_annotated_"+mol+"_"+reps+"_"+dose+".tsv",model)
 
-                    if tool == 'iMAT': 
+                    if tool == 'mana': 
                         labels = ("chi-2",'R2')
                     else:
                         labels = ("KS",'R2')
