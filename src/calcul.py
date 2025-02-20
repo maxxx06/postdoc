@@ -18,6 +18,19 @@ from scipy.stats import chi2_contingency
 from statsmodels.stats import multitest
 
 def compute_freq_table_df(df,name,method='',doses=str(),rep=str()):
+    """
+    Computes the frequency table for a given dataframe based on the selected method.
+    
+    Args:
+        df (pd.DataFrame): Input dataframe.
+        name (str): Name of the frequency table.
+        method (str, optional): Method type ('mana' or 'riptide'). Defaults to ''.
+        doses (str, optional): Doses information. Defaults to str().
+        rep (str, optional): Replicate information. Defaults to str().
+    
+    Returns:
+        pd.Series: Computed frequency table.
+    """
     if method == 'mana':
         if not rep and not doses:
             return pd.Series([sum(df.iloc[:, col])/df.shape[0] for col in range(df.shape[1])],name=name)
@@ -34,10 +47,19 @@ def compute_freq_table_df(df,name,method='',doses=str(),rep=str()):
         return vecteur
 
 def compute_r2_df(r2,df,df_trmt):
+    """
+    Computes R-squared values between two dataframes.
+    
+    Args:
+        r2 (pd.DataFrame): Dataframe to store R-squared values.
+        df (pd.DataFrame): Control condition dataframe.
+        df_trmt (pd.DataFrame): Treatment condition dataframe.
+    
+    Returns:
+        pd.DataFrame: Updated R-squared dataframe.
+    """
     intersection_index = df.index.intersection(df_trmt.index)
     if len(intersection_index) == df.shape[0]: ## check if all reactions identified in controle condition are in the trmt condition
-        # for col in range(len(intersection_index)):
-            # print(col,df.loc[intersection_index,str(col)])
         score = np.square(df.loc[intersection_index,'0'] - df_trmt.loc[intersection_index,'0'])
         r2 = pd.concat([r2,score])
 
@@ -65,6 +87,17 @@ def compute_r2_df(r2,df,df_trmt):
     return r2
 
 def chi2_independance_test(df1,df2,stat_dar_file):
+    """
+    Performs a chi-square independence test between two dataframes.
+    
+    Args:
+        df1 (pd.DataFrame): First dataframe.
+        df2 (pd.DataFrame): Second dataframe.
+        stat_dar_file (str): Path to the output file.
+
+    Saves:
+        A TSV file containing reactions, p-values, and significance indicators based on the chi-square independence test.
+    """
     if df1.shape[0] > df2.shape[0]:
         list_to_add = np.full(df1.shape[0] - df2.shape[0],'Nan')
         df2 = pd.concat([df2,pd.DataFrame(list_to_add)])
@@ -101,17 +134,39 @@ def chi2_independance_test(df1,df2,stat_dar_file):
         chi_2_df.to_csv(stat_dar_file, sep='\t')
 
 def compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,dose,df,MOLECULES,model,tag=""):
-    if tool == 'iMAT' and tag == 'r2': 
+    """
+    Compute the specificity number of DARs (Differentially Activated Reactions) between two molecules.
+    It analyzes and compares the number of DARs of two molecules.
+    
+    Parameters:
+        path_dar (str): Path to the DAR files.
+        tool (str): The method used ('mana' or 'riptide').
+        reps (str): Replication identifier.
+        dose (str): Dose level.
+        df (pd.DataFrame): DataFrame to store results.
+        MOLECULES (list): List containing the two molecules to compare.
+        model (object): Cobra Model used for annotation.
+        tag (str, optional): Tag indicating the analysis type ('r2','chi2' or 'ks). Defaults to "".
+    
+    Returns:
+        pd.DataFrame: Updated DataFrame with specificity number of DAR.
+
+    Saves:
+        A Venn diagram comparing DARs between Amiodarone and Valproic acid.
+        A TSV files containing comparisons.
+    """
+
+    if tool == 'mana' and tag == 'r2': 
         end_path = "/DAR/files/ctrl_High_"+reps+'.tsv'
-    elif tool == 'iMAT' and tag == 'chi2':
+    elif tool == 'mana' and tag == 'chi2':
         end_path="/DAR/files/"+tag+"_ctrl_High_"+reps+'.tsv'
     elif tool == 'riptide' and tag == 'r2': 
         end_path="/10000/DAR/files/ctrl_"+dose+"_"+reps+'.tsv'
-    elif tool == 'riptide' and tag == 'chi2':
+    elif tool == 'riptide' and tag == 'ks':
         end_path="/10000/DAR/files/"+tag+"_ctrl_"+dose+"_"+reps+'.tsv'
 
     if os.path.exists(path_dar+MOLECULES[0]+end_path):
-        if tag == 'chi2':
+        if tag in ['chi2','ks']:
             mol1 = pd.read_csv(path_dar+MOLECULES[0]+end_path,sep='\t',index_col="reactions")
             mol2 = pd.read_csv(path_dar+MOLECULES[1]+end_path,sep='\t',index_col="reactions")
         else:
@@ -175,40 +230,25 @@ def compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,dose,df,MOL
 
     return df
 
-def compute_dar_specificity_ratio_inter_molecules_iMAT(dars,df,tag=""):
-    union_dar = dars[tag]["amiodarone"] | dars[tag]["valproic acid"]
-    intersection_dar = dars[tag]["amiodarone"] & dars[tag]["valproic acid"]
-    unique_dar_a = dars[tag]["amiodarone"] - dars[tag]["valproic acid"]
-    unique_dar_v = dars[tag]["valproic acid"] - dars[tag]["amiodarone"]
-
-    plt.figure()
-    venn2([dars[tag]["amiodarone"],dars[tag]["valproic acid"]], set_labels = ("Amiodarone",'Valproic acid'))
-    plt.savefig("results/iMAT/recon2.2/inter_molecules/images/a_v_High_"+tag+'.png')
-
-    dar_a = len(dars[tag]["amiodarone"])
-    only_dar_a = len(unique_dar_a)
-    dar_v = len(dars[tag]["valproic acid"])
-    only_dar_v = len(unique_dar_v)
-
-    union_dar = [x for x in list(union_dar) if str(x) != 'nan']
-    intersection_dar = [x for x in list(intersection_dar) if str(x) != 'nan']
-    unique_dar_a = [x for x in list(unique_dar_a) if str(x) != 'nan']
-    unique_dar_v = [x for x in list(unique_dar_v) if str(x) != 'nan']
-
-    df[f"union_a_v_High"] = pd.Series(list(union_dar))
-    df[f"intersection_a_v_High"] = pd.Series(list(intersection_dar))
-    df[f"unique_a_High"] = pd.Series(list(unique_dar_a))
-    df[f"unique_v_High"] = pd.Series(list(unique_dar_v))
-
-    print(f"\nProportion of common dars between amiodarone and valproic acid for High dose comparison: {round((len(intersection_dar)/len(union_dar))*100,2)}% ({len(intersection_dar)})")
-    print(f"Proportion of unique dar of amiodarone in for High dose comparison: {round((only_dar_a/dar_a)*100,2)} % ({only_dar_a})")
-    print(f"Proportion of unique dar of valproic acid for High dose comparison: {round((only_dar_v/dar_v)*100,2)}% ({only_dar_v})")
-
-    return df
-
-
 def compute_dar_specificity_ratio_intra_molecules(path_dar,tool,mol,reps,dose,df):
-    if tool == 'iMAT': 
+    """
+    Computes the specificity ratio of DARs within a molecule for different methods (mana or Riptide).
+
+    Args:
+        path_dar (str): Path to the DAR files.
+        tool (str): The tool used for DAR computation ('mana' or 'riptide').
+        mol (str): The molecule name.
+        reps (str): Replicate identifier.
+        dose (str): Dose condition.
+        df (pd.DataFrame): DataFrame to store the computed DAR statistics.
+
+    Returns:
+        pd.DataFrame: Updated DataFrame containing union, intersection, and unique DARs for different methods.
+
+    Saves:
+        A Venn diagram comparing DARs obtained from different statistical methods.
+    """
+    if tool == 'mana': 
         path_dar_r2 = path_dar+mol+"/DAR/files/ctrl_High_"+reps+'.tsv'
         path_dar_ks = path_dar+mol+"/DAR/files/chi2_ctrl_High_"+reps+'.tsv'
 
@@ -229,7 +269,7 @@ def compute_dar_specificity_ratio_intra_molecules(path_dar,tool,mol,reps,dose,df
         unique_dar_mol_r2 =  mol_ks.index.difference(mol_r2.index)
 
 
-        if tool == 'iMAT': 
+        if tool == 'mana': 
             labels = ('R2',"chi-2")
         else:
             labels = ('R2',"KS")
@@ -250,6 +290,17 @@ def compute_dar_specificity_ratio_intra_molecules(path_dar,tool,mol,reps,dose,df
     return df
 
 def compute_two_sample_KS_from_df(ctrl,trmt,stat_dar_file):
+    """
+    Performs a two-sample Kolmogorov-Smirnov (KS) test on reaction activity between control and treatment groups.
+
+    Args:
+        ctrl (pd.DataFrame): DataFrame containing reaction activity data for the control group.
+        trmt (pd.DataFrame): DataFrame containing reaction activity data for the treatment group.
+        stat_dar_file (str): Path to save the results as a TSV file.
+
+    Saves:
+        A TSV file containing reactions, p-values, and significance indicators based on the KS test.
+    """
     ks_df = pd.DataFrame([],columns=["reactions",'dose','control',"p-value corrected","p-value"])
     with open(stat_dar_file,'w+') as f:
         for i in ctrl.columns.intersection(trmt.columns):
