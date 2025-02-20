@@ -8,71 +8,57 @@
 
 import os
 import pandas as pd
-import csv
-import arviz as az
-from statistics import mean
-import matplotlib.pyplot as plt
 import cobra
 
+def read_sample_file(dir_path,tool = str()):
+    """
+    Reads a sample file from the specified directory and returns two DataFrames.
+    
+    Based on the specified tool ('mana' or 'riptide'), the function identifies the sample file 
+    in the directory, reads it into a DataFrame, transposes the DataFrame, and returns both 
+    the transposed and original DataFrames.
 
-def write_stats_file(trmt_ctrl,not_in_ctrl,not_in_trmt, dar,reac,files,dose,tot_reactions):
+    Args:
+        dir_path (str): The directory path where the sample files are located.
+        tool (str, optional): A string specifying the tool type ('mana' or 'riptide'). 
+                              Defaults to an empty string.
 
-    files.write(f"\nProportion of molecules find in both conditions: {round(len(trmt_ctrl)/len(dar)*100,3)}\n")
-    files.write(f"Proportion of molecules not find in the trmt condition but present in the control condition: {round(len(not_in_trmt)/len(dar)*100,3)}\n")
-    files.write(f"Proportion of molecules not find in the control condition but present in the trmt condition: {round((len(not_in_ctrl)/ len(dar))*100,3)}\n")
+    Returns:
+        tuple: A tuple containing two pandas DataFrames:
+            - df_t (DataFrame): The transposed version of the original DataFrame.
+            - df (DataFrame): The original DataFrame read from the sample file.
+    """
+    if tool == 'mana':
+        sample_file = [f for f in os.listdir(dir_path)][0]
+    elif tool == 'riptide':
+        sample_file = [f for f in os.listdir(dir_path) if 'samples' in f][0]
 
-    ### compute minimal number of activated reactions, maximal number of activated reaction, average number of activated reaction
-    files.write(f"\nThe minimal number of activated reactions with a {dose} dose is {min(list(reac.values()))}\n")
-    files.write(f"The maximal number of activated reactions with a {dose} dose is {max(list(reac.values()))}\n")
-    files.write(f"The average number of activated reactions with a {dose} dose is {round(mean(list(reac.values())),0)}\n")
-    dar_number = len(dar)
-    files.write(f"\nThe number of DAR is {dar_number}\n")
-    files.write(f"Total number of reactions: {tot_reactions}\n")
-    files.write(f"Proportion of DAR: {round(dar_number/tot_reactions*100,3)}\n")
-
-def df_to_dict(df):
-    data={}
-    tmp = df.to_dict('list')
-    for k,v in tmp.items():
-        if k != 'Unnamed: 0':
-            data[k] = v
-    return data
-
-
-def read_sample_file(dir_path):
-    files = [f for f in os.listdir(dir_path) if 'samples' in f]
-    for f in files:
-        df=pd.DataFrame()
-        df = pd.read_csv(dir_path+'/'+f,sep='\t',index_col='Unnamed: 0')
-        df_t = df.transpose()
-        # data = df_to_dict(df)
-
-    return df_t,df
-
-def read_sample_file_imat(dir_path):
-    file = [f for f in os.listdir(dir_path)][0]
-    df=pd.DataFrame()
-    df = pd.read_csv(dir_path+'/'+file,sep=',',index_col='Unnamed: 0').head(n=1000)
+    df = pd.DataFrame()
+    if tool == 'riptide':
+        sep = '\t'
+    elif tool == 'mana':
+        sep=','
+    df = pd.read_csv(dir_path+'/'+sample_file,sep=sep,index_col='Unnamed: 0')
     df_t = df.transpose()
-    # data = df_to_dict(df)
 
     return df_t,df
-
-
-def read_dar_file(mol,reps,dose,dars,dar_file):
-    with open(dar_file) as f:
-        dar_file = csv.reader(f, delimiter="\t")
-        for line in dar_file:
-            if len(line) > 1:
-                dars[mol][reps][dose].add(line[0])
-    return dars
-            
-def plot_samples(data,path):
-    print(len(data.keys()))
-    az.plot_trace(data,compact=False)
-    plt.show()
 
 def remove_nan_from_list(list_with_nan):
+    """
+    Removes any 'nan' values from the provided list.
+
+    This function filters out elements from the input list that are equal to 'nan' (as a string).
+
+    Args:
+        list_with_nan (list): A list that may contain 'nan' values (represented as strings).
+
+    Returns:
+        list: A new list containing only the elements from the original list that are not 'nan'.
+    
+    Example:
+        >>> remove_nan_from_list([1, 'nan', 3, 'nan', 5])
+        [1, 3, 5]
+    """
     return [x for x in list(list_with_nan) if str(x) != 'nan']
 
 def load_model(model_path):
