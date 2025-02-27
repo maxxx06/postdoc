@@ -17,14 +17,14 @@ import sampling_coverage
 from scipy.stats import chi2_contingency
 from statsmodels.stats import multitest
 
-def compute_freq_table_df(df,name,method='',doses=str(),rep=str()):
+def compute_freq_table_df(df,name,method,doses=str(),rep=str()):
     """
     Computes the frequency table for a given dataframe based on the selected method.
     
     Args:
         df (pd.DataFrame): Input dataframe.
         name (str): Name of the frequency table.
-        method (str, optional): Method type ('mana' or 'riptide'). Defaults to ''.
+        method (str): Method type ('mana' or 'riptide').
         doses (str, optional): Doses information. Defaults to str().
         rep (str, optional): Replicate information. Defaults to str().
     
@@ -38,12 +38,19 @@ def compute_freq_table_df(df,name,method='',doses=str(),rep=str()):
             return pd.Series([sum(df.iloc[:, col])/df.shape[0] for col in range(df.shape[1]-2)],name=name)
 
     elif method == 'riptide':
-        vecteur = pd.Series()
-        for col_i,col in enumerate(df.columns[:-2]):
-            temp_df = df[[col]].copy()
-            temp_df = temp_df[temp_df[col] != 0.]
-            vecteur = pd.concat([vecteur,pd.Series(temp_df.shape[0]/df.iloc[:, col_i].shape[0],name=name)])
-
+        vecteur = pd.Series(name=name)
+        if not rep and not doses:
+            temp_df = df.copy()
+            for col_i,col in enumerate(df.columns):
+                temp_df = temp_df[temp_df[col] != 0.]
+                res = pd.Series([temp_df.shape[0]/df.iloc[:, col_i].shape[0]],index=[col_i],name=name)
+                vecteur = pd.concat([vecteur,res])
+        else:
+            for col_i,col in enumerate(df.columns[:-2]):
+                temp_df = df[[col]].copy()
+                temp_df = temp_df[temp_df[col] != 0.]
+                res = pd.Series([temp_df.shape[0]/df.iloc[:, col_i].shape[0]],index=[col_i],name=name)
+                vecteur = pd.concat([vecteur,res])
         return vecteur
 
 def compute_r2_df(r2,df,df_trmt):
@@ -133,7 +140,7 @@ def chi2_independance_test(df1,df2,stat_dar_file):
 
         chi_2_df.to_csv(stat_dar_file, sep='\t')
 
-def compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,dose,df,MOLECULES,model,tag=""):
+def compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,dose,df,molecules,model,path_dar_files,out_annot_files,out_annot_images,out_images,out_files,tag=""):
     """
     Compute the specificity number of DARs (Differentially Activated Reactions) between two molecules.
     It analyzes and compares the number of DARs of two molecules.
@@ -144,7 +151,7 @@ def compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,dose,df,MOL
         reps (str): Replication identifier.
         dose (str): Dose level.
         df (pd.DataFrame): DataFrame to store results.
-        MOLECULES (list): List containing the two molecules to compare.
+        molecules (list): List containing the two molecules to compare.
         model (object): Cobra Model used for annotation.
         tag (str, optional): Tag indicating the analysis type ('r2','chi2' or 'ks). Defaults to "".
     
@@ -155,69 +162,69 @@ def compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,dose,df,MOL
         A Venn diagram comparing DARs between Amiodarone and Valproic acid.
         A TSV files containing comparisons.
     """
-
     if tool == 'mana' and tag == 'r2': 
-        end_path = "/DAR/files/ctrl_High_"+reps+'.tsv'
+        end_path = path_dar_files+"ctrl_High_"+reps+'.tsv'
+        index="Unnamed: 0"
     elif tool == 'mana' and tag == 'chi2':
-        end_path="/DAR/files/"+tag+"_ctrl_High_"+reps+'.tsv'
+        end_path=path_dar_files+tag+"_ctrl_High_"+reps+'.tsv'
+        index="reactions"
     elif tool == 'riptide' and tag == 'r2': 
-        end_path="/10000/DAR/files/ctrl_"+dose+"_"+reps+'.tsv'
+        end_path="/10000/"+path_dar_files+"ctrl_"+dose+"_"+reps+'.tsv'
+        index="Unnamed: 0"
     elif tool == 'riptide' and tag == 'ks':
-        end_path="/10000/DAR/files/"+tag+"_ctrl_"+dose+"_"+reps+'.tsv'
-
-    if os.path.exists(path_dar+MOLECULES[0]+end_path):
-        if tag in ['chi2','ks']:
-            mol1 = pd.read_csv(path_dar+MOLECULES[0]+end_path,sep='\t',index_col="reactions")
-            mol2 = pd.read_csv(path_dar+MOLECULES[1]+end_path,sep='\t',index_col="reactions")
-        else:
-            mol1 = pd.read_csv(path_dar+MOLECULES[0]+end_path,sep='\t',index_col="Unnamed: 0")
-            mol2 = pd.read_csv(path_dar+MOLECULES[1]+end_path,sep='\t',index_col="Unnamed: 0")
+        end_path="/10000/"+path_dar_files+tag+"_ctrl_"+dose+"_"+reps+'.tsv'
+        index="reactions"
+    else:
+        raise Exception("invalid parameters")
 
 
-        result = []
-        list_reaction_ks = list(mol1.index)
-        # list_reaction_ks = list(dars_ks[mol][reps][dose])
-        annot_df_ks = sampling_coverage.generate_annotation_table(list_reaction_ks,path_dar+"/inter_molecules/annotation/files/df_"+MOLECULES[0]+"_annotated_"+reps+"_"+dose+".tsv",model)
+    if os.path.exists(path_dar+molecules[0]+"/"+end_path):
+        mol1 = pd.read_csv(path_dar+molecules[0]+"/"+end_path,sep='\t',index_col=index)
+        mol2 = pd.read_csv(path_dar+molecules[1]+"/"+end_path,sep='\t',index_col=index)
 
-        list_reaction_r2 = list(mol2.index)
-        # list_reaction_r2 = list(dars[mol][reps][dose])
-        annot_df_r2 = sampling_coverage.generate_annotation_table(list_reaction_r2,path_dar+"/inter_molecules/annotation/files/df_"+MOLECULES[1]+"_annotated_"+reps+"_"+dose+".tsv",model)
+        result_annot = []
+
+        ## annotation part, both molecules 
+        list_reaction_mol1 = list(mol1.index)
+        annot_df_mol1 = sampling_coverage.generate_annotation_table(list_reaction_mol1,out_annot_files+"df_"+molecules[0]+"_annotated_"+reps+"_"+dose+".tsv",model)
+
+        list_reaction_mol2 = list(mol2.index)
+        annot_df_mol2 = sampling_coverage.generate_annotation_table(list_reaction_mol2,out_annot_files+"df_"+molecules[1]+"_annotated_"+reps+"_"+dose+".tsv",model)
 
         plt.figure()
-        venn2([set(annot_df_ks["Pathway in model"].values),set(annot_df_r2["Pathway in model"].values)], set_labels = ("Amiodarone","acide valproic"))
-        plt.savefig(path_dar+"/inter_molecules/annotation/images/df_a_v_annotated_"+reps+"_"+dose+"_"+tag+".png", bbox_inches='tight')
+        venn2([set(annot_df_mol1["Pathway in model"].values),set(annot_df_mol2["Pathway in model"].values)], set_labels = (molecules[0],molecules[1]))
+        plt.savefig(out_annot_images+"df_a_v_annotated_"+reps+"_"+dose+"_"+tag+".png", bbox_inches='tight')
                 
-        intersection_0 = set(annot_df_r2["Pathway in model"]).intersection(set(annot_df_ks["Pathway in model"]))
-        diff_r2_ks_0 = set(annot_df_r2["Pathway in model"]).difference(set(annot_df_ks["Pathway in model"]))
-        diff_ks_r2_0 = set(annot_df_ks["Pathway in model"]).difference(set(annot_df_r2["Pathway in model"]))
+        intersection_0 = set(annot_df_mol2["Pathway in model"]).intersection(set(annot_df_mol1["Pathway in model"]))
+        diff_r2_ks_0 = set(annot_df_mol2["Pathway in model"]).difference(set(annot_df_mol1["Pathway in model"]))
+        diff_ks_r2_0 = set(annot_df_mol1["Pathway in model"]).difference(set(annot_df_mol2["Pathway in model"]))
 
         diff_ks_r2_0 = utils.remove_nan_from_list(diff_ks_r2_0)
         diff_r2_ks_0 = utils.remove_nan_from_list(diff_r2_ks_0)
         intersection_0 = utils.remove_nan_from_list(intersection_0)
 
 
-        result.append({'Intersection_0': list(intersection_0), 'length intersection_0': len(intersection_0), 'difference_r2_ks_0': list(diff_r2_ks_0), 'length difference r2 ks': len(diff_r2_ks_0), 'difference_ks_r2_0': list(diff_ks_r2_0), 'length difference ks r2_0': len(diff_ks_r2_0)})
+        result_annot.append({'Intersection_0': list(intersection_0), 'length intersection_0': len(intersection_0), 'difference_r2_ks_0': list(diff_r2_ks_0), 'length difference r2 ks': len(diff_r2_ks_0), 'difference_ks_r2_0': list(diff_ks_r2_0), 'length difference ks r2_0': len(diff_ks_r2_0)})
 
-        df_comparison = pd.DataFrame(result)
-        df_comparison.to_csv(path_dar+"/inter_molecules/annotation/files/df_dar_annotated_a_v_"+reps+"_"+dose+".tsv",sep='\t')
+        df_comparison = pd.DataFrame(result_annot)
+        df_comparison.to_csv(out_annot_files+"df_dar_annotated_a_v_"+reps+"_"+dose+".tsv",sep='\t')
 
+        ## Dar part, both molecules
+        result_dar = []
         union_dar_df = pd.concat([mol1,mol2])
         intersection_dar_df =  mol1.index.intersection(mol2.index)
         unique_dar_mol1 =  mol1.index.difference(mol2.index)
         unique_dar_mol2 =  mol2.index.difference(mol1.index)
 
+        result_dar.append({f'Union_{molecules[0]}_{molecules[1]}':union_dar_df,'intersection_dar_df': list(intersection_dar_df), 'length intersection_dar_df': len(intersection_dar_df), 'unique_dar_mol1': list(unique_dar_mol1), 'length unique_dar_mol1': len(unique_dar_mol1), 'unique_dar_mol2': list(unique_dar_mol2), 'length unique_dar_mol2': len(unique_dar_mol2)})
+
         plt.figure()
-        venn2([set(mol1.index),set(mol2.index)], set_labels = ("Amiodarone",'Valproic acid'))
-        if tool == 'riptide':
-            plt.savefig("results/riptide/recon2.2/maxfit/inter_molecules/images/df_a_v_"+reps+"_"+dose+'_'+tag+'.png')
-        else:
-            plt.savefig("results/iMAT/recon2.2/inter_molecules/images/df_a_v_"+reps+"_"+dose+'_'+tag+'.png')
+        venn2([set(mol1.index),set(mol2.index)], set_labels = (molecules[0],molecules[1]))
+        plt.savefig(out_images+"df_a_v_"+reps+"_"+dose+'_'+tag+'.png')
 
+        df_comparison = pd.DataFrame(result_dar)
+        df_comparison.to_csv(out_files+"df_dar_a_v_"+reps+"_"+dose+".tsv",sep='\t')
 
-        dar_a = mol1.shape[0]
-        only_dar_a = len(unique_dar_mol1)
-        dar_v = mol2.shape[0]
-        only_dar_v = len(unique_dar_mol2)
 
         df[f"union_a_v_{reps}_{dose}"] = pd.Series(union_dar_df.index)
         df[f"intersection_a_v_{reps}_{dose}"] = pd.Series(intersection_dar_df)
@@ -225,12 +232,15 @@ def compute_dar_specificity_ratio_inter_molecules(path_dar,tool,reps,dose,df,MOL
         df[f"unique_v_{reps}_{dose}"] = pd.Series(unique_dar_mol2)
 
         print(f"\nProportion of common dars between amiodarone and valproic acid in {reps} for {dose} dose comparison: {round((len(intersection_dar_df)/len(union_dar_df))*100,2)}% ({len(intersection_dar_df)})")
-        print(f"Proportion of unique dar of amiodarone in {reps} for {dose} dose comparison: {round((only_dar_a/dar_a)*100,2)} % ({only_dar_a})")
-        print(f"Proportion of unique dar of valproic acid in {reps} for {dose} dose comparison: {round((only_dar_v/dar_v)*100,2)}% ({only_dar_v})")
+        print(f"Proportion of unique dar of amiodarone in {reps} for {dose} dose comparison: {round((len(unique_dar_mol1)/mol1.shape[0])*100,2)} % ({len(unique_dar_mol1)})")
+        print(f"Proportion of unique dar of valproic acid in {reps} for {dose} dose comparison: {round((len(unique_dar_mol2)/mol2.shape[0])*100,2)}% ({len(unique_dar_mol2)})")
+
+    else:
+        print(path_dar+molecules[0]+"/"+end_path+" not exist.")
 
     return df
 
-def compute_dar_specificity_ratio_intra_molecules(path_dar,tool,mol,reps,dose,df):
+def compute_dar_specificity_ratio_intra_molecules(path_dar,tool,mol,reps,dose,df,out_images,tag,path_dar_files):
     """
     Computes the specificity ratio of DARs within a molecule for different methods (mana or Riptide).
 
@@ -248,35 +258,25 @@ def compute_dar_specificity_ratio_intra_molecules(path_dar,tool,mol,reps,dose,df
     Saves:
         A Venn diagram comparing DARs obtained from different statistical methods.
     """
-    if tool == 'mana': 
-        path_dar_r2 = path_dar+mol+"/DAR/files/ctrl_High_"+reps+'.tsv'
-        path_dar_ks = path_dar+mol+"/DAR/files/chi2_ctrl_High_"+reps+'.tsv'
+    if tool == "riptide":
+        samples= "10000"
+    else:
+        samples = ""
+    path_dar_r2 = path_dar+mol+"/"+samples+"/"+path_dar_files+"ctrl_"+dose+"_"+reps+'.tsv'
+    path_dar_ks = path_dar+mol+"/"+samples+"/"+path_dar_files+tag+"_ctrl_"+dose+"_"+reps+'.tsv'
 
-    elif tool == 'riptide': 
-        path_dar_r2 = path_dar+mol+"/10000/DAR/files/ctrl_"+dose+"_"+reps+'.tsv'
-        path_dar_ks = path_dar+mol+"/10000/DAR/files/ks_ctrl_"+dose+"_"+reps+'.tsv'
-
-    
     if os.path.exists(path_dar_r2) and os.path.exists(path_dar_ks):
-        output = path_dar+"/intra_molecules_inter_DAR/images/"
         mol_ks = pd.read_csv(path_dar_ks,sep='\t',index_col="reactions")
         mol_r2 = pd.read_csv(path_dar_r2,sep='\t',index_col="Unnamed: 0")
 
-
         union_dar_df = pd.concat([mol_r2,mol_ks])
         intersection_dar_df =  mol_r2.index.intersection(mol_ks.index)
-        unique_dar_mol_ks =  mol_r2.index.difference(mol_ks.index)
-        unique_dar_mol_r2 =  mol_ks.index.difference(mol_r2.index)
+        unique_dar_mol_ks =  mol_ks.index.difference(mol_r2.index)
+        unique_dar_mol_r2 =  mol_r2.index.difference(mol_ks.index)
 
-
-        if tool == 'mana': 
-            labels = ('R2',"chi-2")
-        else:
-            labels = ('R2',"KS")
-                        
         plt.figure()
-        venn2([set(mol_r2.index),set(mol_ks.index)],set_labels = labels)
-        plt.savefig(output+"df_"+mol+'_'+reps+"_"+dose+'.png', bbox_inches='tight')
+        venn2([set(mol_r2.index),set(mol_ks.index)],set_labels = ("R2",tag))
+        plt.savefig(out_images+"df_"+mol+'_'+reps+"_"+dose+'.png', bbox_inches='tight')
 
         df[f"union_{mol}_{reps}_{dose}"] = pd.Series(list(union_dar_df.index))
         df[f"intersection_{mol}_{reps}_{dose}"] = pd.Series(list(intersection_dar_df))
