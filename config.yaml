@@ -1,0 +1,44 @@
+# DATA:
+#   path: "data/microarray/annotated_data_uniq_high_sd_flagged.tsv"
+#   attributes: "data/microarray/open_tggates_cel_file_attribute.csv"
+#   mapped_gene: 'data/microarray/hgnc_custom_set.txt'
+#   output_transcriptomic_folder: 'data/microarray/'
+#   sacrific_period: '24 hr'
+#   dose_level: 'Control/Low/Middle/High'
+#   compound: 'amiodarone/valproic acid'
+#   replicates: '1/2'
+
+DATA:
+  path: "data/rnaseq/HepG2_6h_24h/counts_raw_normalized.xlsx"
+  attributes: "data/rnaseq/Metadata/D22554_Données Globales_Projet OMICS_HepG2_9MPs_54020_Trichostatine_6h_24h.xlsx" 
+  mapped_gene: 'data/microarray/hgnc_custom_set.txt'
+  output_transcriptomic_folder: 'data/rnaseq/'
+  sacrific_period: '24'
+  dose_level: '1/2/3/4/5'
+  control: 'DMSO/H2O'
+  compound: 'Amiodarone/Acide Valproïc'
+  replicates: '1/2/3'
+  tag: rnaseq
+
+RIPTiDe:
+  metabolic_model: "data/metabolic_networks/recon2v2_biomass_corrected_final.sbml"
+  out_riptide: "results/riptide/recon2.2/maxfit/rnaseq/"
+  samples: 101 # minimum for maxfit
+  maxfit: False
+
+ANALYSIS:
+  tool: 'riptide/mana'
+  molecules: "amiodarone/valproic acid"
+  replicates: "replicate_0/replicate_1"
+  dose_level: "Control/Low/Middle/High"
+  tag: 'ks/chi2' # change between ks or chi2 (for binary data). R2 is always computed.
+  pathway_model_description: "data/metabolic_networks/recon2.2.xml"
+  samples: "results/riptide/recon2.2/maxfit/microarray/,results/iMAT/recon2.2/microarray/"
+  output_dar_files: "DAR/files/"
+  media: "data/medium/williams.tsv"
+
+COMPARISON:
+  samples_riptide: "results/riptide/recon2.2/maxfit/microarray/"
+  samples_mana: "results/iMAT/recon2.2/microarray/"
+  output: "results/comparison_between_context_method/"
+
