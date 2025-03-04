@@ -329,21 +329,31 @@ def intra_molecules_inter_dar_and_context_methods(path_dar,path_dar_mana,model,m
     utils.create_directory_if_not_exists(output+"images/")
     utils.create_directory_if_not_exists(output+"files/")
     result = []
+    result_annot = []
     for mol in molecules:
         for reps in replicates:
             imat_ks = pd.read_csv(path_dar_mana+mol+"/"+path_dar_files+"chi2_ctrl_High_"+reps+".tsv",sep='\t',index_col=["reactions"])
             imat_r2 = pd.read_csv(path_dar_mana+mol+"/"+path_dar_files+"ctrl_High_"+reps+".tsv",sep='\t',index_col=["Unnamed: 0"])
             riptide_ks = pd.read_csv(path_dar+mol+"/10000/"+path_dar_files+"ks_ctrl_High_"+reps+'.tsv',sep='\t',index_col=["reactions"])
             riptide_r2 = pd.read_csv(path_dar+mol+"/10000/"+path_dar_files+"ctrl_High_"+reps+'.tsv',sep='\t',index_col=["Unnamed: 0"])
-            
-            sets={f"mana_chi2_{reps.split('_')[-1]}" : set(imat_ks.index),
-                  f"mana_r2_{reps.split('_')[-1]}" : set(imat_r2.index),
-                  f"riptide_ks_{reps.split('_')[-1]}" : set(riptide_ks.index),
-                  f"riptide_r2_{reps.split('_')[-1]}" : set(riptide_r2.index)
-                  }
-            set_names = [f"mana_chi2_{reps.split('_')[-1]}",f"mana_r2_{reps.split('_')[-1]}",f"riptide_ks_{reps.split('_')[-1]}",f"riptide_r2_{reps.split('_')[-1]}"]
-            all_elems = set(imat_ks.index).union( set(imat_r2.index)).union(set(riptide_ks.index)).union(set(riptide_r2.index))
-            df = pd.DataFrame([[e in set(imat_ks.index), e in set(imat_r2.index), e in set(riptide_ks.index), e in set(riptide_r2.index)] for e in all_elems], columns = set_names)
+
+            intersection_0 = set(riptide_r2.index).intersection(set(imat_r2.index))
+            diff_riptide_imat_0 = set(riptide_r2.index).difference(set(imat_r2.index))
+            diff_imat_riptide_0 = set(imat_r2.index).difference(set(riptide_r2.index))
+
+            diff_imat_riptide_0 = utils.remove_nan_from_list(diff_imat_riptide_0)
+            diff_riptide_imat_0 = utils.remove_nan_from_list(diff_riptide_imat_0)
+            intersection_0 = utils.remove_nan_from_list(intersection_0)
+
+
+            result.append({'Intersection_0': list(intersection_0), 'length intersection_0': len(intersection_0), 'difference_riptide_imat': list(diff_riptide_imat_0), 'length difference riptide imat': len(diff_riptide_imat_0), 'difference_imat_riptide': list(diff_imat_riptide_0), 'length difference imat riptide': len(diff_imat_riptide_0)})
+
+            df_comparison = pd.DataFrame(result)
+            df_comparison.to_csv(output+f"files/df_High_r2_{mol}_{reps}.tsv",sep='\t')
+
+            set_names = [f"mana_r2_{reps.split('_')[-1]}",f"riptide_ks_{reps.split('_')[-1]}",f"riptide_r2_{reps.split('_')[-1]}"]
+            all_elems = set(imat_r2.index).union(set(riptide_ks.index)).union(set(riptide_r2.index))
+            df = pd.DataFrame([[e in set(imat_r2.index), e in set(riptide_ks.index), e in set(riptide_r2.index)] for e in all_elems], columns = set_names)
             df_up = df.groupby(set_names).size()
             upsetplot.plot(df_up, orientation='horizontal')
             current_figure = plt.gcf()
@@ -361,11 +371,6 @@ def intra_molecules_inter_dar_and_context_methods(path_dar,path_dar_mana,model,m
             annot_imat_ks = generate_annotation_table(list(imat_ks.index),output+f"files/annot_imat_chi2_{reps}.tsv",model)
             annot_riptide_ks = generate_annotation_table(list(riptide_ks.index),output+f"files/annot_riptide_ks_{reps}.tsv",model)
 
-            sets={f"mana_chi2_{reps.split('_')[-1]}" : set(annot_imat_ks["Pathway in model"]),
-                  f"mana_r2_{reps.split('_')[-1]}" : set(annot_imat_r2["Pathway in model"]),
-                  f"riptide_ks_{reps.split('_')[-1]}" : set(annot_riptide_ks["Pathway in model"]),
-                  f"riptide_r2_{reps.split('_')[-1]}" : set(annot_riptide_r2["Pathway in model"])
-                  }
             set_names = [f"mana_chi2_{reps.split('_')[-1]}",f"mana_r2_{reps.split('_')[-1]}",f"riptide_ks_{reps.split('_')[-1]}",f"riptide_r2_{reps.split('_')[-1]}"]
             all_elems = set(annot_imat_ks["Pathway in model"]).union( set(annot_imat_r2["Pathway in model"])).union(set(annot_riptide_ks["Pathway in model"])).union(set(annot_riptide_r2["Pathway in model"]))
             df = pd.DataFrame([[e in set(annot_imat_ks["Pathway in model"]), e in set(annot_imat_r2["Pathway in model"]), e in set(annot_riptide_ks["Pathway in model"]), e in set(annot_riptide_r2["Pathway in model"])] for e in all_elems], columns = set_names)
@@ -373,6 +378,22 @@ def intra_molecules_inter_dar_and_context_methods(path_dar,path_dar_mana,model,m
             upsetplot.plot(df_up, orientation='horizontal')
             current_figure = plt.gcf()
             current_figure.savefig(output+f"images/upset_annot_{mol}_{reps}.png")
+
+            counts_annot_riptide_r2=annot_riptide_r2["Pathway in model"].value_counts()
+            counts_annot_riptide_ks=annot_riptide_ks["Pathway in model"].value_counts()
+            counts_annot_imat_r2=annot_imat_r2["Pathway in model"].value_counts()
+            counts_annot_imat_ks=annot_imat_ks["Pathway in model"].value_counts()
+
+            counts_annot_riptide_r2.to_csv(output+f"files/df_count_annot_riptide_High_r2_{mol}_{reps}.tsv",sep='\t')
+            counts_annot_riptide_ks.to_csv(output+f"files/df_count_annot_riptide_High_ks_{mol}_{reps}.tsv",sep='\t')
+            counts_annot_imat_r2.to_csv(output+f"files/df_count_annot_mana_High_r2_{mol}_{reps}.tsv",sep='\t')
+            counts_annot_imat_ks.to_csv(output+f"files/df_count_annot_mana_High_chi2_{mol}_{reps}.tsv",sep='\t')
+
+            annot_riptide_r2 = annot_riptide_r2[~annot_riptide_r2["Pathway in model"].isin(counts_annot_riptide_r2[counts_annot_riptide_r2 < 5].index)]
+            annot_riptide_ks = annot_riptide_ks[~annot_riptide_ks["Pathway in model"].isin(counts_annot_riptide_ks[counts_annot_riptide_ks < 5].index)]
+            annot_imat_r2 = annot_imat_r2[~annot_imat_r2["Pathway in model"].isin(counts_annot_imat_r2[counts_annot_imat_r2 < 5].index)]
+            annot_imat_ks = annot_imat_ks[~annot_imat_ks["Pathway in model"].isin(counts_annot_imat_ks[counts_annot_imat_ks < 5].index)]
+
 
             intersection_0 = set(annot_riptide_r2["Pathway in model"]).intersection(set(annot_imat_r2["Pathway in model"]))
             diff_riptide_imat_0 = set(annot_riptide_r2["Pathway in model"]).difference(set(annot_imat_r2["Pathway in model"]))
@@ -383,9 +404,9 @@ def intra_molecules_inter_dar_and_context_methods(path_dar,path_dar_mana,model,m
             intersection_0 = utils.remove_nan_from_list(intersection_0)
 
 
-            result.append({'Intersection_0': list(intersection_0), 'length intersection_0': len(intersection_0), 'difference_riptide_imat': list(diff_riptide_imat_0), 'length difference riptide imat': len(diff_riptide_imat_0), 'difference_imat_riptide': list(diff_imat_riptide_0), 'length difference imat riptide': len(diff_imat_riptide_0)})
+            result_annot.append({'Intersection_0': list(intersection_0), 'length intersection_0': len(intersection_0), 'difference_riptide_imat': list(diff_riptide_imat_0), 'length difference riptide imat': len(diff_riptide_imat_0), 'difference_imat_riptide': list(diff_imat_riptide_0), 'length difference imat riptide': len(diff_imat_riptide_0)})
 
-            df_comparison = pd.DataFrame(result)
+            df_comparison = pd.DataFrame(result_annot)
             df_comparison.to_csv(output+f"files/annot_df_High_r2_{mol}_{reps}.tsv",sep='\t')
             
             # venny4py(sets=sets,out=f"results/comparison_between_context_method/df_annot_{mol}_{reps}")
