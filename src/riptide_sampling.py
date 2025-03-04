@@ -46,8 +46,17 @@ def load_riptide(file_path):
 
     for compound in data_compound:
         for dose_level in data_dose_level:
+            output_transcriptomic_path = data_output_transcriptomic_folder+compound+'/'+data_sacrific_period.split(' ')[0]+'_'+dose_level+'/'
+            utils.create_directory_if_not_exists(output_transcriptomic_path)
+            transcriptomic_data = data_management.data_filter(data_path,data_attributes,output_transcriptomic_path+'transcriptomic_data.csv',sacrifice_period=data_sacrific_period,dose_level=dose_level,compound_name=compound,tag=tag)
+            transcriptomic_data_mapped = data_management.map_genes(transcriptomic_data,data_mapped_gene_path,output_transcriptomic_path+'transcriptomic_data_mapped.csv',model_version,tag=tag)
+
             for replicates in data_replicates:
-                get_flux_samples(data_path,data_attributes,model,model_version,sacrific_period=data_sacrific_period,dose_level=dose_level,compound_name=compound,replicates=replicates,samples=riptide_samples,maxfit=riptide_maxfit,output_transcriptomic=data_output_transcriptomic_folder, mapped_gene=data_mapped_gene_path,out_riptide=output_riptide,tag=tag)
+                transcriptomic_data_mapped_reps = {gene:float(exprs[int(replicates)]) for gene,exprs in transcriptomic_data_mapped.items()}
+                out = output_riptide+compound+'/'+str(riptide_samples)+'/'+data_sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(replicates)+'/'
+
+                utils.create_directory_if_not_exists(out)
+                get_flux_samples(model,transcriptomic_data_mapped_reps,samples=riptide_samples,maxfit=riptide_maxfit,out_riptide=out)
 
 def load_analysis(file_path):
     with open(file_path, 'r') as file:
@@ -64,8 +73,8 @@ def load_analysis(file_path):
     model = utils.load_model(config["ANALYSIS"]['pathway_model_description'])
 
 
-    for i_tool,tool in enumerate(tools):
-        sampling_coverage.r2_iteration(path_samples[i_tool],tool,tag[i_tool],model,dose_level,replicates,molecules,path_dar_files)
+    # for i_tool,tool in enumerate(tools):
+    #     sampling_coverage.r2_iteration(path_samples[i_tool],tool,tag[i_tool],model,dose_level,replicates,molecules,path_dar_files)
     
     ## intra_molecules & inter DAR identification methods on mana and riptide
     print("\n******* between MANA and RIPTiDe **********")
@@ -84,8 +93,8 @@ def add_media_constrains(model,media):
     model.medium = new_medium
 
 
-def get_flux_samples(data_path,attribute_data_path,model,model_version,sacrific_period=str(),dose_level=str(),compound_name=str(),replicates=int(),samples=int(),maxfit=bool(),output_transcriptomic=str(),mapped_gene=str(),out_riptide=str(),tag=str()):
-    """ Function to run RIPTiDe from TG-GATES MicroAray data. 
+def get_flux_samples(model,transcriptome,samples=int(),maxfit=bool(),out_riptide=str(),frac_step=0.1):
+    """ Function to run RIPTiDe from either TG-GATES MicroAray or RNA seq data. 
 
     Args:
         data_path (str): Path of the microArray data
@@ -99,25 +108,18 @@ def get_flux_samples(data_path,attribute_data_path,model,model_version,sacrific_
         maxfit (bool): Performs maxfit algorithm of RIPTiDe. Defaults to bool().
     """    
     
-    output_transcriptomic_path = output_transcriptomic+compound_name+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/'
-
-    if utils.create_directory_if_not_exists(output_transcriptomic_path):
-        transcriptomic_data = data_management.data_filter(data_path,attribute_data_path,output_transcriptomic_path+'transcriptomic_data.csv',sacrifice_period=sacrific_period,dose_level=dose_level,compound_name=compound_name,tag=tag)
-        transcriptomic_data_mapped = data_management.map_genes(transcriptomic_data,mapped_gene,output_transcriptomic_path+'transcriptomic_data_mapped.csv',model_version,tag=tag)
-        
-        for reps in range(int(replicates)):
-            transcriptomic_data_mapped_reps = {gene:float(exprs[reps]) for gene,exprs in transcriptomic_data_mapped.items()}
-            out = out_riptide+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
-            utils.create_directory_if_not_exists(out)
-            if maxfit:
-                riptide_object = riptide.maxfit(model=model,transcriptome=transcriptomic_data_mapped_reps,objective=True,prune=True,gpr=True,samples=samples)
-
-            else:
-                # fraction = utils.get_fraction("results/riptide/recon2.2/maxfit/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/parameters.txt')
-                # out = "results/riptide/recon2.2/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
-                riptide_object = riptide.contextualize(model=model,transcriptome=transcriptomic_data_mapped_reps,objective=True,prune=True,gpr=True,samples=samples,fraction=0.8)
-
-            riptide.save_output(riptide_obj=riptide_object, path=out,file_type='SBML')
-
+    print(frac_step)
+    if maxfit:
+        riptide_object = riptide.maxfit(model,transcriptome=transcriptome,objective=True,prune=True,gpr=True,samples=samples,frac_step=frac_step)
+        if riptide_object.concordance['p'] > 0.05:
+            frac_step-=0.02
+            get_flux_samples(model,transcriptome,samples=samples,maxfit=maxfit,out_riptide=out_riptide,frac_step=frac_step)
     else:
-        print('not a valid path for ', output_transcriptomic_path)
+        # fraction = utils.get_fraction("results/riptide/recon2.2/maxfit/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/parameters.txt')
+        # out = "results/riptide/recon2.2/"+compound_name+'/'+str(samples)+'/'+sacrific_period.split(' ')[0]+'_'+dose_level+'/replicate_'+str(reps)+'/'
+        riptide_object = riptide.contextualize(model,transcriptome=transcriptome,objective=True,prune=True,gpr=True,samples=samples,fraction=0.8)
+
+    riptide.save_output(riptide_obj=riptide_object, path=out_riptide,file_type='SBML')
+            
+
+
